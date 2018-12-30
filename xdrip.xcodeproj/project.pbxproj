@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F8025C0821D8DD1F00ECF0C0 /* CGMMiaoMiaoTransmitter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8025C0721D8DD1F00ECF0C0 /* CGMMiaoMiaoTransmitter.swift */; };
+		F8025C0A21D94FD700ECF0C0 /* Bluetooth.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8025C0921D94FD700ECF0C0 /* Bluetooth.swift */; };
+		F8025C0D21D95E6B00ECF0C0 /* BluetoothTransmitterDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8025C0C21D95E6B00ECF0C0 /* BluetoothTransmitterDelegate.swift */; };
+		F8025C0F21D95EC200ECF0C0 /* CGMTransmitterDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8025C0E21D95EC200ECF0C0 /* CGMTransmitterDelegate.swift */; };
 		F85DC2EB21CFE2F500B9F74A /* Calibration+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = F85DC2E521CFE2F500B9F74A /* Calibration+CoreDataProperties.swift */; };
 		F85DC2ED21CFE2F500B9F74A /* BgReading+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = F85DC2E721CFE2F500B9F74A /* BgReading+CoreDataProperties.swift */; };
 		F85DC2EF21CFE2F500B9F74A /* Sensor+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = F85DC2E921CFE2F500B9F74A /* Sensor+CoreDataProperties.swift */; };
@@ -25,7 +29,7 @@
 		F8EA6C7A21B48B390082976B /* BgReadingAlgorithms.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8EA6C7921B48B390082976B /* BgReadingAlgorithms.swift */; };
 		F8EA6C7C21B491740082976B /* BgReadings.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8EA6C7B21B491740082976B /* BgReadings.swift */; };
 		F8EA6C7F21B70E390082976B /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8EA6C7E21B70E390082976B /* Constants.swift */; };
-		F8EA6C8221B723BC0082976B /* DateAndTime.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8EA6C8121B723BC0082976B /* DateAndTime.swift */; };
+		F8EA6C8221B723BC0082976B /* Date.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8EA6C8121B723BC0082976B /* Date.swift */; };
 		F8EA6C9621B848C20082976B /* ActiveSensor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8EA6C9521B848C20082976B /* ActiveSensor.swift */; };
 		F8EA6CA921BBE3010082976B /* UniqueId.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8EA6CA821BBE3010082976B /* UniqueId.swift */; };
 		F8EA6CAD21BC2CA40082976B /* BluetoothTransmitter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8EA6CAC21BC2CA40082976B /* BluetoothTransmitter.swift */; };
@@ -35,6 +39,10 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		F8025C0721D8DD1F00ECF0C0 /* CGMMiaoMiaoTransmitter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CGMMiaoMiaoTransmitter.swift; sourceTree = "<group>"; };
+		F8025C0921D94FD700ECF0C0 /* Bluetooth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Bluetooth.swift; sourceTree = "<group>"; };
+		F8025C0C21D95E6B00ECF0C0 /* BluetoothTransmitterDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothTransmitterDelegate.swift; sourceTree = "<group>"; };
+		F8025C0E21D95EC200ECF0C0 /* CGMTransmitterDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CGMTransmitterDelegate.swift; sourceTree = "<group>"; };
 		F85DC2E521CFE2F500B9F74A /* Calibration+CoreDataProperties.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Calibration+CoreDataProperties.swift"; sourceTree = "<group>"; };
 		F85DC2E721CFE2F500B9F74A /* BgReading+CoreDataProperties.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BgReading+CoreDataProperties.swift"; sourceTree = "<group>"; };
 		F85DC2E921CFE2F500B9F74A /* Sensor+CoreDataProperties.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sensor+CoreDataProperties.swift"; sourceTree = "<group>"; };
@@ -55,7 +63,7 @@
 		F8EA6C7921B48B390082976B /* BgReadingAlgorithms.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BgReadingAlgorithms.swift; sourceTree = "<group>"; };
 		F8EA6C7B21B491740082976B /* BgReadings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BgReadings.swift; sourceTree = "<group>"; };
 		F8EA6C7E21B70E390082976B /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
-		F8EA6C8121B723BC0082976B /* DateAndTime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateAndTime.swift; sourceTree = "<group>"; };
+		F8EA6C8121B723BC0082976B /* Date.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Date.swift; sourceTree = "<group>"; };
 		F8EA6C9521B848C20082976B /* ActiveSensor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveSensor.swift; sourceTree = "<group>"; };
 		F8EA6CA821BBE3010082976B /* UniqueId.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniqueId.swift; sourceTree = "<group>"; };
 		F8EA6CAC21BC2CA40082976B /* BluetoothTransmitter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothTransmitter.swift; sourceTree = "<group>"; };
@@ -75,6 +83,23 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		F8025C0621D8DCE700ECF0C0 /* MiaoMiao */ = {
+			isa = PBXGroup;
+			children = (
+				F8025C0721D8DD1F00ECF0C0 /* CGMMiaoMiaoTransmitter.swift */,
+			);
+			path = MiaoMiao;
+			sourceTree = "<group>";
+		};
+		F8025C0B21D9513400ECF0C0 /* Extensions */ = {
+			isa = PBXGroup;
+			children = (
+				F8EA6C8121B723BC0082976B /* Date.swift */,
+				F8025C0921D94FD700ECF0C0 /* Bluetooth.swift */,
+			);
+			path = Extensions;
+			sourceTree = "<group>";
+		};
 		F85DC29B21CFCEB800B9F74A /* Recovered References */ = {
 			isa = PBXGroup;
 			children = (
@@ -129,6 +154,7 @@
 			isa = PBXGroup;
 			children = (
 				F85DC2FE21D3E83100B9F74A /* G4 */,
+				F8025C0621D8DCE700ECF0C0 /* MiaoMiao */,
 			);
 			path = Specific;
 			sourceTree = "<group>";
@@ -145,6 +171,8 @@
 			isa = PBXGroup;
 			children = (
 				F8EA6CAC21BC2CA40082976B /* BluetoothTransmitter.swift */,
+				F8025C0C21D95E6B00ECF0C0 /* BluetoothTransmitterDelegate.swift */,
+				F8025C0E21D95EC200ECF0C0 /* CGMTransmitterDelegate.swift */,
 			);
 			path = Generic;
 			sourceTree = "<group>";
@@ -175,6 +203,7 @@
 				F8AC426621ADEBD70078C348 /* Assets.xcassets */,
 				F8EA6C7D21B70DEA0082976B /* Constants */,
 				F8AC42D021B342910078C348 /* Core Data */,
+				F8025C0B21D9513400ECF0C0 /* Extensions */,
 				F8AC426B21ADEBD70078C348 /* Info.plist */,
 				F85DC2F621D25E3A00B9F74A /* Managers */,
 				F85DC2F921D2CCC000B9F74A /* Storyboards */,
@@ -189,7 +218,7 @@
 			isa = PBXGroup;
 			children = (
 				F8EA6CA421B9A25B0082976B /* classes */,
-				F8EA6CA321B9A21C0082976B /* extensions */,
+				F8EA6CA321B9A21C0082976B /* Extensions */,
 				F8AC429F21B31F160078C348 /* xdrip.xcdatamodeld */,
 			);
 			name = "Core Data";
@@ -218,20 +247,19 @@
 		F8EA6C8021B723A80082976B /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
-				F8EA6C8121B723BC0082976B /* DateAndTime.swift */,
 				F8EA6CA821BBE3010082976B /* UniqueId.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
 		};
-		F8EA6CA321B9A21C0082976B /* extensions */ = {
+		F8EA6CA321B9A21C0082976B /* Extensions */ = {
 			isa = PBXGroup;
 			children = (
 				F85DC2E721CFE2F500B9F74A /* BgReading+CoreDataProperties.swift */,
 				F85DC2E521CFE2F500B9F74A /* Calibration+CoreDataProperties.swift */,
 				F85DC2E921CFE2F500B9F74A /* Sensor+CoreDataProperties.swift */,
 			);
-			path = extensions;
+			path = Extensions;
 			sourceTree = "<group>";
 		};
 		F8EA6CA421B9A25B0082976B /* classes */ = {
@@ -302,6 +330,11 @@
 				TargetAttributes = {
 					F8AC425921ADEBD60078C348 = {
 						CreatedOnToolsVersion = 10.1;
+						SystemCapabilities = {
+							com.apple.BackgroundModes = {
+								enabled = 1;
+							};
+						};
 					};
 				};
 			};
@@ -341,12 +374,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				F8EA6C8221B723BC0082976B /* DateAndTime.swift in Sources */,
+				F8EA6C8221B723BC0082976B /* Date.swift in Sources */,
 				F8AC426221ADEBD60078C348 /* SecondViewController.swift in Sources */,
 				F85DC2EB21CFE2F500B9F74A /* Calibration+CoreDataProperties.swift in Sources */,
 				F85DC2F521CFE3D400B9F74A /* BgReading+CoreDataClass.swift in Sources */,
 				F85DC2ED21CFE2F500B9F74A /* BgReading+CoreDataProperties.swift in Sources */,
+				F8025C0821D8DD1F00ECF0C0 /* CGMMiaoMiaoTransmitter.swift in Sources */,
 				F8AC42A121B31F170078C348 /* xdrip.xcdatamodeld in Sources */,
+				F8025C0D21D95E6B00ECF0C0 /* BluetoothTransmitterDelegate.swift in Sources */,
 				F8EA6CB121C05E970082976B /* Calibrations.swift in Sources */,
 				F8EA6CA921BBE3010082976B /* UniqueId.swift in Sources */,
 				F8EA6C9621B848C20082976B /* ActiveSensor.swift in Sources */,
@@ -356,10 +391,12 @@
 				F85DC2F821D2632F00B9F74A /* CoreDataManager.swift in Sources */,
 				F8AC425E21ADEBD60078C348 /* AppDelegate.swift in Sources */,
 				F85DC30121D3F5CC00B9F74A /* CGMG4xDripTransmitter.swift in Sources */,
+				F8025C0A21D94FD700ECF0C0 /* Bluetooth.swift in Sources */,
 				F8EA6CAD21BC2CA40082976B /* BluetoothTransmitter.swift in Sources */,
 				F85DC2F321CFE3D400B9F74A /* Calibration+CoreDataClass.swift in Sources */,
 				F8EA6CB321CD5DD90082976B /* SlopeParameters.swift in Sources */,
 				F8EA6CAF21C0213C0082976B /* CalibrationAlgorithms.swift in Sources */,
+				F8025C0F21D95EC200ECF0C0 /* CGMTransmitterDelegate.swift in Sources */,
 				F8AC426021ADEBD60078C348 /* FirstViewController.swift in Sources */,
 				F8EA6C7F21B70E390082976B /* Constants.swift in Sources */,
 				F85DC2EF21CFE2F500B9F74A /* Sensor+CoreDataProperties.swift in Sources */,

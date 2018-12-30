@@ -1,30 +1,42 @@
 import UIKit
 import CoreData
+import os
+import CoreBluetooth
 
-class FirstViewController: UIViewController {
-
+class FirstViewController: UIViewController, CGMTransmitterDelegate {
+    
     // MARK: - Properties
+    var test:CGMGMiaoMiaoTransmitter?
+    
+    var address:String?
+    var name:String?
 
     // TODO : move to other location ?
     private var coreDataManager = CoreDataManager(modelName: "xdrip")
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        let test:CGMG4xDripTransmitter = CGMG4xDripTransmitter(address:"new address",name:"new name")
-        
-        print(test.CBUUID_Advertisement)
-        print(test.CBUUID_WriteCharacteristic)
-        print(test.address ?? "default address")
-        print(test.name ?? "default name")
+        //let test:CGMG4xDripTransmitter = CGMG4xDripTransmitter(addressAndName: CGMG4xDripTransmitter.G4DeviceAddressAndName.notYetConnected)
+        test = CGMGMiaoMiaoTransmitter(addressAndName: CGMGMiaoMiaoTransmitter.MiaoMiaoDeviceAddressAndName.notYetConnected, delegate:self)
+        let log = OSLog(subsystem: Constants.Log.subSystem, category: Constants.Log.categoryBlueTooth)
+        os_log("firstview", log: log, type: .info)
 
-        //test.test()
-        if let centralManager = test.centralManager {
-            print("central manager exists and is ", centralManager.isScanning ? "":"not", " scanning")
-            test.startScanning()
-        } else {
-            print("central manager does not exist")
+
+        
+    }
+    
+    func bluetooth(didUpdateState state: CBManagerState) {
+        if address == nil {
+            _ = test?.startScanning()
         }
     }
+
+    func cgmTransmitterdidConnect() {
+        address = test?.address
+        name = test?.name
+    }
+    
+
 }
 
 

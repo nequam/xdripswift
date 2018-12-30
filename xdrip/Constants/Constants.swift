@@ -46,5 +46,7 @@ struct Constants {
         static let subSystem = "net.johandegraeve.beatit"
         /// for use in OSLog
         static let categoryBlueTooth = "bluetooth"
+        
+        static let categoryCGMMiaoMiao = "cgmmiaomiao"
     }
 }
