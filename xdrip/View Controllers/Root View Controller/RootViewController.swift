@@ -5,6 +5,7 @@ import CoreBluetooth
 import UserNotifications
 import AVFoundation
 import AudioToolbox
+import Charts
 
 /// viewcontroller for the home screen
 final class RootViewController: UIViewController {
@@ -35,6 +36,9 @@ final class RootViewController: UIViewController {
         UIAlertController(title: "Info", message: "Unfortuantely, presnooze functionality is not yet implemented", actionHandler: nil).presentInOwnWindow(animated: true, completion: nil)
     }
     
+    
+    /// outlet for chart that shows reading
+    @IBOutlet weak var lineChartViewOutlet: LineChartView!
     /// outlet for label that shows how many minutes ago and so on
     @IBOutlet weak var minutesLabelOutlet: UILabel!
     
@@ -117,6 +121,8 @@ final class RootViewController: UIViewController {
     /// timestamp of last notification for pairing
     private var timeStampLastNotificationForPairing:Date?
     
+    private weak var searchVC: BubbleClientSearchViewController?
+    
     // MARK: - View Life Cycle
     
     override func viewWillAppear(_ animated: Bool) {
@@ -126,12 +132,66 @@ final class RootViewController: UIViewController {
         updateLabels()
     }
     
+    @objc private func webOOPLog(info: Notification) {
+        if let result = info.object {
+          
+        }
+    }
+    
+    /*func test() {
+        var data = "7e71401303000000000000000000000000000000000000006bcb04002d07c83459012d07c83059012a07c82459012707c83859016607c82059016e07c82859017007c82859016d07c84059016307c85459015707c84859015607c84859014c07c86459014407c87459013d07c87c59013b07c86459014507c84459011e06c8cc1b013406c8605a013706c8841a017805c8c0dc00b204c84cde001604c84ca000b503c844a1007303c8f062007603c8c861008c03c81ca100ee03c8c0dd00e404c8e05a011e06c8345a013c07880e1b01ce07c8785a019b07c8581a01d107c8f01901f907c8c45901de07c8705901de07c8f49801c507c8185901a807c8105901fb07c8385901f508c81499015c09c86c98015309c86498013809c88c9801e008c8c458015708c8f09801b707c8f498015807c8f898013707c84459014529000044d100015108f550140796805a00eda6187b1ac804c25869".hexadecimal ?? Data()
+        data = data.subdata(in: 0..<344)
+        LibreDataParser.libreDataProcessor(sensorSerialNumber: "asdfasdf", webOOPEnabled: true, oopWebSite: UserDefaults, libreData: data, cgmTransmitterDelegate: self, transmitterBatteryInfo: nil, firmware: nil, hardware: nil, hardwareSerialNumber: nil, bootloader: nil, timeStampLastBgReading: Date(timeIntervalSince1970: 0), completionHandler: {(timeStampLastBgReading:Date) in
+            
+        })
+    }*/
+    
     override func viewDidLoad() {
         super.viewDidLoad()
+        /*#if DEBUG
+        Timer.scheduledTimer(withTimeInterval: 1, repeats: false, block: {_ in
+            self.test()
+        })
+        endif*/
         
         // Setup Core Data Manager - setting up coreDataManager happens asynchronously
         // completion handler is called when finished. This gives the app time to already continue setup which is independent of coredata, like setting up the transmitter, start scanning
         // In the exceptional case that the transmitter would give a new reading before the DataManager is set up, then this new reading will be ignored
+        NotificationCenter.default.addObserver(self, selector: #selector(webOOPLog(info:)), name: Notification.Name.init(rawValue: "webOOPLog"), object: nil)
+        
+        
+        lineChartViewOutlet.rightAxis.enabled = false
+        lineChartViewOutlet.highlightPerTapEnabled = false
+        lineChartViewOutlet.scaleYEnabled = false
+        lineChartViewOutlet.legend.form = .none
+        //y
+        let leftAxis = lineChartViewOutlet.leftAxis
+        leftAxis.forceLabelsEnabled = false
+        leftAxis.axisLineColor = UIColor.black
+        leftAxis.labelTextColor = UIColor.black
+        leftAxis.labelFont = UIFont.systemFont(ofSize: 10)
+        leftAxis.gridColor = .clear
+        leftAxis.axisMaximum = 16
+        leftAxis.axisMinimum = 0
+        leftAxis.labelCount = 5
+        leftAxis.labelPosition = .insideChart
+        let noZeroFormatter = NumberFormatter()
+        noZeroFormatter.zeroSymbol = ""
+        leftAxis.valueFormatter = DefaultAxisValueFormatter.init(formatter: noZeroFormatter)
+        
+        //x
+        let xAxis = lineChartViewOutlet.xAxis
+        xAxis.granularityEnabled = true
+        xAxis.labelTextColor = UIColor.black
+        xAxis.labelFont = UIFont.systemFont(ofSize: 10.0)
+        xAxis.labelPosition = .bottom
+        xAxis.gridColor = .clear
+        xAxis.axisLineColor = UIColor.black
+        xAxis.axisMaximum = 24
+        xAxis.axisMinimum = 0
+        lineChartViewOutlet.zoom(scaleX: 4, scaleY: 1, x: 0, y:0)
+        
+        
         coreDataManager = CoreDataManager(modelName: ConstantsCoreData.modelName, completion: {
             
             self.setupApplicationData()
@@ -318,7 +378,6 @@ final class RootViewController: UIViewController {
             // iterate through array, elements are ordered by timestamp, first is the youngest, let's create first the oldest, although it shouldn't matter in what order the readings are created
             for (_, glucose) in glucoseData.enumerated().reversed() {
                 if glucose.timeStamp > timeStampLastBgReading {
-                    
                     _ = calibrator.createNewBgReading(rawData: (Double)(glucose.glucoseLevelRaw), filteredData: (Double)(glucose.glucoseLevelRaw), timeStamp: glucose.timeStamp, sensor: activeSensor, last3Readings: &latest3BgReadings, lastCalibrationsForActiveSensorInLastXDays: &lastCalibrationsForActiveSensorInLastXDays, firstCalibration: firstCalibrationForActiveSensor, lastCalibration: lastCalibrationForActiveSensor, deviceName:UserDefaults.standard.bluetoothDeviceName, nsManagedObjectContext: coreDataManager.mainManagedObjectContext)
                     
                     // save the newly created bgreading permenantly in coredata
@@ -781,21 +840,93 @@ final class RootViewController: UIViewController {
     @objc private func updateLabels() {
         
         // check that bgReadingsAccessor exists, otherwise return - this happens if updateLabels is called from viewDidload at app launch
-        
         guard let bgReadingsAccessor = bgReadingsAccessor else {return}
+        
+        let latestReadings = bgReadingsAccessor.getLatestBgReadings(limit: nil, howOld: 1, forSensor: nil, ignoreRawData: false, ignoreCalculatedValue: false)
+        
+        
+        // points
+        var colors = [UIColor]()
+        var dataEntries = [ChartDataEntry]()
+        let oneHour = TimeInterval(60 * 60) // seconds
+        let calendar = Calendar.current
+        let com = calendar.dateComponents([.hour, .minute, .second], from: Date())
+        var oneDayAgo = Date().timeIntervalSince1970 - TimeInterval(com.hour ?? 0) * oneHour
+        oneDayAgo -= TimeInterval(com.minute ?? 0) * 60
+        oneDayAgo -= TimeInterval(com.second ?? 0)
+        var max = 16
+        if UserDefaults.standard.bloodGlucoseUnitIsMgDl {
+            max = 200
+        }
+        for reading in latestReadings {
+            let x = (reading.timeStamp.timeIntervalSince1970 - oneDayAgo) / oneHour
+            var y = Double(reading.calculatedValue.mgdlToMmolAndToString(mgdl: UserDefaults.standard.bloodGlucoseUnitIsMgDl)) ?? 0
+            if y.isNaN {
+                y = 0
+            }
+            let entry = ChartDataEntry.init(x: Double(x), y: y)
+            
+            if y < UserDefaults.standard.lowMarkValueInUserChosenUnit || y > UserDefaults.standard.highMarkValueInUserChosenUnit {
+                colors.insert(.red, at: 0)
+            } else {
+                colors.insert(.green, at: 0)
+            }
+            
+            dataEntries.insert(entry, at: 0)
+            if Int(y) > max {
+                max = Int(y)
+            }
+        }
+        
+        lineChartViewOutlet.leftAxis.removeAllLimitLines()
+        let limitLine3 = ChartLimitLine.init(limit: UserDefaults.standard.lowMarkValueInUserChosenUnit, label: String.init(format: "%.1f", UserDefaults.standard.lowMarkValueInUserChosenUnit))
+        limitLine3.lineColor = .green
+        limitLine3.valueTextColor = .green
+        limitLine3.lineWidth = 1
+        limitLine3.lineDashLengths = [5.0, 5.0]
+        lineChartViewOutlet.leftAxis.addLimitLine(limitLine3)
+        
+        let limitLine9 = ChartLimitLine.init(limit: UserDefaults.standard.highMarkValueInUserChosenUnit, label: String.init(format: "%.1f", UserDefaults.standard.highMarkValueInUserChosenUnit))
+        limitLine9.lineColor = .green
+        limitLine9.valueTextColor = .green
+        limitLine9.lineWidth = 1
+        limitLine9.lineDashLengths = [5.0, 5.0]
+        lineChartViewOutlet.leftAxis.addLimitLine(limitLine9)
+
+        let chartDataSet = LineChartDataSet(entries: dataEntries, label: "")
+        chartDataSet.mode = .cubicBezier
+        chartDataSet.circleColors = colors
+        chartDataSet.circleRadius = 2
+        chartDataSet.drawValuesEnabled = false
+        chartDataSet.drawCircleHoleEnabled = false
+        chartDataSet.colors = [.clear]
+
+        if UserDefaults.standard.bloodGlucoseUnitIsMgDl {
+            max = max < 200 ? 200 : max
+        } else {
+            max = max < 16 ? 16 : max
+        }
+        lineChartViewOutlet.leftAxis.axisMaximum = Double(max)
+        lineChartViewOutlet.data = LineChartData(dataSets: [chartDataSet])
+        if let entry = dataEntries.last {
+            var x = entry.x - (24 / Double(lineChartViewOutlet.scaleX)) / 2
+            x = x > 0 ? x : 0
+            lineChartViewOutlet.moveViewToX(x)
+        }
         
         // last reading and lateButOneReading variable definition - optional
         var lastReading:BgReading?
         var lastButOneReading:BgReading?
         
         // assign latestReading if it exists
-        let latestReadings = bgReadingsAccessor.getLatestBgReadings(limit: 2, howOld: 1, forSensor: nil, ignoreRawData: false, ignoreCalculatedValue: false)
+//        let latestReadings = bgReadingsAccessor.getLatestBgReadings(limit: 2, howOld: 1, forSensor: nil, ignoreRawData: false, ignoreCalculatedValue: false)
         if latestReadings.count > 0 {
             lastReading = latestReadings[0]
         }
         if latestReadings.count > 1 {
             lastButOneReading = latestReadings[1]
         }
+        
         
         // get latest reading, doesn't matter if it's for an active sensor or not, but it needs to have calculatedValue > 0 / which means, if user would have started a new sensor, but didn't calibrate yet, and a reading is received, then there's no going to be a latestReading
         if let lastReading = lastReading {
@@ -823,15 +954,18 @@ final class RootViewController: UIViewController {
                 valueLabelOutlet.textColor = UIColor.red
             } else if lastReading.calculatedValue >= UserDefaults.standard.highMarkValueInUserChosenUnit.mmolToMgdl(mgdl: UserDefaults.standard.bloodGlucoseUnitIsMgDl) {
                 valueLabelOutlet.textColor = "#a0b002".hexStringToUIColor()
+                valueLabelOutlet.textColor = UIColor.red
             } else {
-                valueLabelOutlet.textColor = UIColor.black
+                valueLabelOutlet.textColor = UIColor.green
             }
             
             // get minutes ago and create text for minutes ago label
             let minutesAgo = -Int(lastReading.timeStamp.timeIntervalSinceNow) / 60
             let minutesAgoText = minutesAgo.description + " " + (minutesAgo == 1 ? Texts_Common.minute:Texts_Common.minutes) + " " + Texts_HomeView.ago
             
-            minutesLabelOutlet.text = minutesAgoText
+            let format = DateFormatter.init()
+            format.dateFormat = "H:mm"
+            minutesLabelOutlet.text = format.string(from: lastReading.timeStamp)
             
             // create delta text
             diffLabelOutlet.text = lastReading.unitizedDeltaString(previousBgReading: lastButOneReading, showUnit: true, highGranularity: true, mgdl: UserDefaults.standard.bloodGlucoseUnitIsMgDl)
@@ -940,6 +1074,14 @@ final class RootViewController: UIViewController {
     private func userInitiatesStartScanning() {
         
         // start the scanning, result of the startscanning will be in startScanningResult - this is not the result of the scanning itself. Scanning may have started successfully but maybe the peripheral is not yet connected, maybe it is
+        if let selectedTransmitterType = UserDefaults.standard.transmitterType {
+            if selectedTransmitterType == .Bubble {
+                let vc = BubbleClientSearchViewController()
+                searchVC = vc
+                let nav = UINavigationController.init(rootViewController: vc)
+                present(nav, animated: true, completion: nil)
+            }
+        }
         if let startScanningResult = cgmTransmitter?.startScanning() {
             trace("in userInitiatesStartScanning, startScanningResult = %{public}@", log: log, type: .info, startScanningResult.description())
             switch startScanningResult {
@@ -1054,6 +1196,10 @@ extension RootViewController:CGMTransmitterDelegate {
     
     func error(message: String) {
         UIAlertController(title: Texts_Common.warning, message: message, actionHandler: nil).presentInOwnWindow(animated: true, completion: nil)
+    }
+    
+    func list(list: [BluetoothPeripheral]) {
+        searchVC?.list = list
     }
     
     func reset(successful: Bool) {

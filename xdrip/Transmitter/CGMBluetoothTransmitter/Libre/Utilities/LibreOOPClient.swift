@@ -26,13 +26,14 @@ class LibreOOPClient {
     
     /// for trace
     private static let log = OSLog(subsystem: ConstantsLog.subSystem, category: ConstantsLog.categoryLibreOOPClient)
-
+    
     // MARK: - public functions
     
     public static func handleLibreData(libreData: Data, timeStampLastBgReading: Date, serialNumber: String, oopWebSite: String, oopWebToken: String, _ callback: @escaping ((glucoseData: [GlucoseData], sensorState: LibreSensorState, sensorTimeInMinutes: Int, errorDescription:String?)) -> Void) {
         
         let sensorState = LibreSensorState(stateByte: libreData[4])
-
+        
+        
         LibreOOPClient.calibrateSensor(bytes: libreData, serialNumber: serialNumber, site: oopWebSite, token: oopWebToken) {
             (libreDerivedAlgorithmParameters, errorDescription)  in
             
@@ -43,7 +44,7 @@ class LibreOOPClient {
             defer {
                 callback((finalResult, sensorState, sensorTimeInMinutes, errorDescription))
             }
-
+            
             // if errorDescription received from call to LibreOOPClient.calibrateSensor not nil then no need to continue
             if errorDescription != nil {return}
             
@@ -58,7 +59,7 @@ class LibreOOPClient {
             let last16 = trendMeasurements(bytes: libreData, date: Date(), timeStampLastBgReading: timeStampLastBgReading, LibreDerivedAlgorithmParameterSet: libreDerivedAlgorithmParameters)
             
             let glucoseData = trendToLibreGlucose(last16)
-                
+            
             // return only readings that are at least 5 minutes away from each other, except the first, same approach as in LibreDataParser.parse
             
             // we will add the most recent readings, but then we'll only add the readings that are at least 5 minutes apart (giving 10 seconds spare)
@@ -77,10 +78,8 @@ class LibreOOPClient {
                     break
                 }
             }
-
         }
     }
-
     private static func calibrateSensor(bytes: Data, serialNumber: String, site: String, token: String, callback: @escaping (LibreDerivedAlgorithmParameters?, _ errorDescription:String?) -> Void) {
         
         /// first try to get libreDerivedAlgorithmParameters for the sensor from disk
@@ -128,7 +127,7 @@ class LibreOOPClient {
                 errorDescription =  String(bytes: data, encoding: .utf8) ?? "Failed to decode data received from remote server."
                 return
             }
-
+            
             if let getCalibrationStatus = getCalibrationStatus, let slope = getCalibrationStatus.slope {
                 libreDerivedAlgorithmParameters = LibreDerivedAlgorithmParameters(slope_slope: slope.slopeSlope ?? 0, slope_offset: slope.slopeOffset ?? 0, offset_slope: slope.offsetSlope ?? 0, offset_offset: slope.offsetOffset ?? 0, isValidForFooterWithReverseCRCs: Int(slope.isValidForFooterWithReverseCRCs ?? 1), extraSlope: 1.0, extraOffset: 0.0, sensorSerialNumber: serialNumber)
                 do {
@@ -157,7 +156,7 @@ class LibreOOPClient {
     private static func post(bytes: Data, site: String, token: String, _ completion:@escaping (( _ data_: Data?, _ errorDescription: String?) -> Void)) {
         
         let date = Date().toMillisecondsAsInt64()
-
+        
         let json: [String: String] = [
             "token": token,
             "content": "\(bytes.hexEncodedString())",
@@ -171,7 +170,8 @@ class LibreOOPClient {
             request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
             
             let task = URLSession.shared.dataTask(with: request as URLRequest) {
-                data, urlResponse, error in
+                
+                data, response, error in
                 
                 // TODO: check urlResponse and http error code ? (see also NightScoutUploadManager)
                 
@@ -181,6 +181,7 @@ class LibreOOPClient {
                     DispatchQueue.main.sync {
                         completion(data, errorDescription)
                     }
+                    
                 }
                 
                 // error cases
@@ -191,7 +192,7 @@ class LibreOOPClient {
                     return
                     
                 }
-
+                
             }
             
             task.resume()
@@ -199,7 +200,7 @@ class LibreOOPClient {
             completion(nil, "failed to create url from " + site)
         }
     }
-
+    
     private static func save(data: Data) {
         let url = URL.init(fileURLWithPath: filePath)
         do {
@@ -208,7 +209,7 @@ class LibreOOPClient {
             trace("in save, failed to save data", log: log, type: .error)
         }
     }
-
+    
     private static func trendMeasurements(bytes: Data, date: Date, timeStampLastBgReading: Date, _ offset: Double = 0.0, slope: Double = 0.1, LibreDerivedAlgorithmParameterSet: LibreDerivedAlgorithmParameters?) -> [LibreMeasurement] {
         
         //    let headerRange =   0..<24   //  24 bytes, i.e.  3 blocks a 8 bytes
@@ -238,6 +239,51 @@ class LibreOOPClient {
         return measurements
     }
     
+    private static func historyMeasurements(bytes: [UInt8], date: Date, _ offset: Double = 0.0, slope: Double = 0.1, LibreDerivedAlgorithmParameterSet: LibreDerivedAlgorithmParameters?) -> [LibreMeasurement] {
+        //    let headerRange =   0..<24   //  24 bytes, i.e.  3 blocks a 8 bytes
+        let bodyRange   =  24..<320  // 296 bytes, i.e. 37 blocks a 8 bytes
+        //    let footerRange = 320..<344  //  24 bytes, i.e.  3 blocks a 8 bytes
+        
+        let body   = Array(bytes[bodyRange])
+        let nextHistoryBlock = Int(body[3])
+        let minutesSinceStart = Int(body[293]) << 8 + Int(body[292])
+        var measurements = [LibreMeasurement]()
+        // History data is stored in body from byte 100 to byte 100+192-1=291 in units of 6 bytes. Index on data such that most recent block is first.
+        for blockIndex in 0..<32 {
+            
+            var index = 100 + (nextHistoryBlock - 1 - blockIndex) * 6 // runs backwards
+            if index < 100 {
+                index = index + 192 // if end of ring buffer is reached shift to beginning of ring buffer
+            }
+            
+            let range = index..<index+6
+            let measurementBytes = Array(body[range])
+            //            let measurementDate = dateOfMostRecentHistoryValue().addingTimeInterval(Double(-900 * blockIndex)) // 900 = 60 * 15
+            //            let measurement = Measurement(bytes: measurementBytes, slope: slope, offset: offset, date: measurementDate)
+            let (date, counter) = dateOfMostRecentHistoryValue(minutesSinceStart: minutesSinceStart, nextHistoryBlock: nextHistoryBlock, date: date)
+            
+            let measurement = LibreMeasurement(bytes: measurementBytes, slope: slope, offset: offset, counter: counter - blockIndex * 15, date: date.addingTimeInterval(Double(-900 * blockIndex)), LibreDerivedAlgorithmParameterSet: LibreDerivedAlgorithmParameterSet)
+            measurements.append(measurement)
+        }
+        return measurements
+    }
+    
+    private static func dateOfMostRecentHistoryValue(minutesSinceStart: Int, nextHistoryBlock: Int, date: Date) -> (date: Date, counter: Int) {
+        // Calculate correct date for the most recent history value.
+        //        date.addingTimeInterval( 60.0 * -Double( (minutesSinceStart - 3) % 15 + 3 ) )
+        let nextHistoryIndexCalculatedFromMinutesCounter = ( (minutesSinceStart - 3) / 15 ) % 32
+        let delay = (minutesSinceStart - 3) % 15 + 3 // in minutes
+        if nextHistoryIndexCalculatedFromMinutesCounter == nextHistoryBlock {
+            // Case when history index is incremented togehter with minutesSinceStart (in sync)
+            //            print("delay: \(delay), minutesSinceStart: \(minutesSinceStart), result: \(minutesSinceStart-delay)")
+            return (date: date.addingTimeInterval( 60.0 * -Double(delay) ), counter: minutesSinceStart - delay)
+        } else {
+            // Case when history index is incremented before minutesSinceStart (and they are async)
+            //            print("delay: \(delay), minutesSinceStart: \(minutesSinceStart), result: \(minutesSinceStart-delay-15)")
+            return (date: date.addingTimeInterval( 60.0 * -Double(delay - 15)), counter: minutesSinceStart - delay)
+        }
+    }
+    
     
     private static func trendToLibreGlucose(_ measurements: [LibreMeasurement]) -> [LibreRawGlucoseData]{
         
@@ -250,8 +296,10 @@ class LibreOOPClient {
         }
         
         return LibreGlucoseSmoothing.CalculateSmothedData5Points(origtrends: origarr)
-
+        
         
     }
-
+    
 }
+
+

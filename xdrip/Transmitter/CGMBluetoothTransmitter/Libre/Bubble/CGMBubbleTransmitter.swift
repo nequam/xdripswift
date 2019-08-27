@@ -51,6 +51,10 @@ class CGMBubbleTransmitter:BluetoothTransmitter, BluetoothTransmitterDelegate, C
     
     /// oop token to use in case oop web would be enabled
     private var oopWebToken: String
+
+    /// Bubble Peripheral list
+    private var list = [BluetoothPeripheral]()
+
     
     // MARK: - Initialization
     
@@ -106,7 +110,30 @@ class CGMBubbleTransmitter:BluetoothTransmitter, BluetoothTransmitterDelegate, C
         }
     }
     
+    override func startScanning() -> BluetoothTransmitter.startScanningResult {
+        list = []
+        stopScanning()
+        return super.startScanning()
+    }
+    
     // MARK: - BluetoothTransmitterDelegate functions
+    
+    func centralManagerDidDiscover(peripheral: BluetoothPeripheral) {
+        var insert = true
+        if let mac = peripheral.mac {
+            for temp in list{
+                if temp.mac == mac {
+                    insert = false
+                    break
+                }
+            }
+            
+            if insert {
+                list.append(peripheral)
+            }
+            cgmTransmitterDelegate?.list(list: list)
+        }
+    }
     
     func centralManagerDidConnect(address:String?, name:String?) {
         cgmTransmitterDelegate?.cgmTransmitterDidConnect(address: address, name: name)
@@ -160,7 +187,7 @@ class CGMBubbleTransmitter:BluetoothTransmitter, BluetoothTransmitterDelegate, C
                         rxBuffer.append(value.subdata(in: 2..<10))
                         
                     case .dataPacket:
-                        
+                        guard rxBuffer.count >= 8 else { return }
                         rxBuffer.append(value.suffix(from: 4))
                         if rxBuffer.count >= 352 {
                             if (Crc.LibreCrc(data: &rxBuffer, headerOffset: bubbleHeaderLength)) {
