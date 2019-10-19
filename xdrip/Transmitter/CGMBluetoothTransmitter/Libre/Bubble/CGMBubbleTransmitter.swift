@@ -46,28 +46,22 @@ class CGMBubbleTransmitter:BluetoothTransmitter, BluetoothTransmitterDelegate, C
     // current sensor serial number, if nil then it's not known yet
     private var sensorSerialNumber:String?
     
-    /// oop website url to use in case oop web would be enabled
-    private var oopWebSite: String
-    
-    /// oop token to use in case oop web would be enabled
-    private var oopWebToken: String
+    /// Bubble Peripheral list
+    private var list = [BluetoothPeripheral]()
     
     // MARK: - Initialization
     
     /// - parameters:
     ///     - address: if already connected before, then give here the address that was received during previous connect, if not give nil
-    ///     - name : if already connected before, then give here the name that was received during previous connect, if not give nil
     ///     - delegate : CGMTransmitterDelegate intance
     ///     - timeStampLastBgReading : timestamp of last bgReading
     ///     - webOOPEnabled : enabled or not
-    ///     - oopWebSite : oop web site url to use, only used in case webOOPEnabled = true
-    ///     - oopWebToken : oop web token to use, only used in case webOOPEnabled = true
-    init(address:String?, name: String?, delegate:CGMTransmitterDelegate, timeStampLastBgReading:Date, sensorSerialNumber:String?, webOOPEnabled: Bool, oopWebSite: String, oopWebToken: String) {
+    init(address:String?, delegate:CGMTransmitterDelegate, timeStampLastBgReading:Date, sensorSerialNumber:String?, webOOPEnabled: Bool) {
         
         // assign addressname and name or expected devicename
         var newAddressAndName:BluetoothTransmitter.DeviceAddressAndName = BluetoothTransmitter.DeviceAddressAndName.notYetConnected(expectedName: expectedDeviceNameBubble)
         if let address = address {
-            newAddressAndName = BluetoothTransmitter.DeviceAddressAndName.alreadyConnectedBefore(address: address, name: name)
+            newAddressAndName = BluetoothTransmitter.DeviceAddressAndName.alreadyConnectedBefore(address: address)
         }
         
         // initialize sensorSerialNumber
@@ -86,10 +80,6 @@ class CGMBubbleTransmitter:BluetoothTransmitter, BluetoothTransmitterDelegate, C
         // initialize webOOPEnabled
         self.webOOPEnabled = webOOPEnabled
         
-        // initialize oopWebToken and oopWebSite
-        self.oopWebToken = oopWebToken
-        self.oopWebSite = oopWebSite
-        
         super.init(addressAndName: newAddressAndName, CBUUID_Advertisement: nil, servicesCBUUIDs: [CBUUID(string: CBUUID_Service_Bubble)], CBUUID_ReceiveCharacteristic: CBUUID_ReceiveCharacteristic_Bubble, CBUUID_WriteCharacteristic: CBUUID_WriteCharacteristic_Bubble, startScanningAfterInit: CGMTransmitterType.Bubble.startScanningAfterInit())
         
         // set self as delegate for BluetoothTransmitterDelegate - this parameter is defined in the parent class BluetoothTransmitter
@@ -99,7 +89,7 @@ class CGMBubbleTransmitter:BluetoothTransmitter, BluetoothTransmitterDelegate, C
     // MARK: - public functions
     
     func sendStartReadingCommmand() -> Bool {
-        if writeDataToPeripheral(data: Data([0x00, 0x00, 0x5]), type: .withoutResponse) {
+        if writeDataToPeripheral(data: Data([0x00, 0x00, 0x05]), type: .withoutResponse) {
             return true
         } else {
             trace("in sendStartReadingCommmand, write failed", log: log, type: .error)
@@ -107,14 +97,37 @@ class CGMBubbleTransmitter:BluetoothTransmitter, BluetoothTransmitterDelegate, C
         }
     }
     
+    override func startScanning() -> BluetoothTransmitter.startScanningResult {
+        list = []
+        stopScanning()
+        return super.startScanning()
+    }
+    
     // MARK: - BluetoothTransmitterDelegate functions
+    
+    func centralManagerDidDiscover(peripheral: BluetoothPeripheral) {
+        var insert = true
+        if let mac = peripheral.mac {
+            for temp in list{
+                if temp.mac == mac {
+                    insert = false
+                    break
+                }
+            }
+            
+            if insert {
+                list.append(peripheral)
+            }
+            cgmTransmitterDelegate?.list(list: list)
+        }
+    }
     
     func centralManagerDidConnect(address:String?, name:String?) {
         cgmTransmitterDelegate?.cgmTransmitterDidConnect(address: address, name: name)
+        NotificationCenter.default.post(name: Notification.Name.init(rawValue: "webOOPLog"), object: "did connected")
     }
     
     func centralManagerDidFailToConnect(error: Error?) {
-        trace("in centralManagerDidFailToConnect", log: log, type: .error)
     }
     
     func centralManagerDidUpdateState(state: CBManagerState) {
@@ -123,6 +136,7 @@ class CGMBubbleTransmitter:BluetoothTransmitter, BluetoothTransmitterDelegate, C
     
     func centralManagerDidDisconnectPeripheral(error: Error?) {
         cgmTransmitterDelegate?.cgmTransmitterDidDisconnect()
+        NotificationCenter.default.post(name: Notification.Name.init(rawValue: "webOOPLog"), object: "did disconnected")
     }
     
     func peripheralDidUpdateNotificationStateFor(characteristic: CBCharacteristic, error: Error?) {
@@ -162,9 +176,10 @@ class CGMBubbleTransmitter:BluetoothTransmitter, BluetoothTransmitterDelegate, C
                         rxBuffer.append(value.subdata(in: 2..<10))
                         
                     case .dataPacket:
-                        
+                        guard rxBuffer.count >= 8 else { return }
                         rxBuffer.append(value.suffix(from: 4))
                         if rxBuffer.count >= 352 {
+                            NotificationCenter.default.post(name: Notification.Name.init(rawValue: "webOOPLog"), object: "did received data")
                             if (Crc.LibreCrc(data: &rxBuffer, headerOffset: bubbleHeaderLength)) {
                                 
                                 if let libreSensorSerialNumber = LibreSensorSerialNumber(withUID: Data(rxBuffer.subdata(in: 0..<8))) {
@@ -190,9 +205,8 @@ class CGMBubbleTransmitter:BluetoothTransmitter, BluetoothTransmitterDelegate, C
 
                                 }
                                 
-                                LibreDataParser.libreDataProcessor(sensorSerialNumber: sensorSerialNumber, webOOPEnabled: webOOPEnabled, oopWebSite: oopWebSite, oopWebToken: oopWebToken, libreData: (rxBuffer.subdata(in: bubbleHeaderLength..<(344 + bubbleHeaderLength))), cgmTransmitterDelegate: cgmTransmitterDelegate, transmitterBatteryInfo: nil, firmware: nil, hardware: nil, hardwareSerialNumber: nil, bootloader: nil, timeStampLastBgReading: timeStampLastBgReading, completionHandler: {(timeStampLastBgReading:Date) in
+                                LibreDataParser.libreDataProcessor(sensorSerialNumber: sensorSerialNumber, webOOPEnabled: webOOPEnabled, libreData: (rxBuffer.subdata(in: bubbleHeaderLength..<(344 + bubbleHeaderLength))), cgmTransmitterDelegate: cgmTransmitterDelegate, transmitterBatteryInfo: nil, firmware: nil, hardware: nil, hardwareSerialNumber: nil, bootloader: nil, timeStampLastBgReading: timeStampLastBgReading, completionHandler: {(timeStampLastBgReading:Date) in
                                     self.timeStampLastBgReading = timeStampLastBgReading
-                                    
                                 })
 
                                 //reset the buffer
@@ -236,12 +250,6 @@ class CGMBubbleTransmitter:BluetoothTransmitter, BluetoothTransmitterDelegate, C
         webOOPEnabled = enabled
     }
     
-
-    func setWebOOPSiteAndToken(oopWebSite: String, oopWebToken: String) {
-        self.oopWebToken = oopWebToken
-        self.oopWebSite = oopWebSite
-    }
-
 }
 
 fileprivate enum BubbleResponseType: UInt8 {

@@ -14,7 +14,7 @@ final class AlertSettingsViewController: UIViewController {
     
     @IBOutlet weak var topLabelOutlet: UILabel!
     
-    /// done button, to confirm changes
+    // done button, to confirm changes
     @IBAction func doneButtonAction(_ sender: UIBarButtonItem) {
         
         alertEntryAsNSObject.alertkind = alertSettingsViewControllerData.alertKind
@@ -31,22 +31,20 @@ final class AlertSettingsViewController: UIViewController {
     
     @IBOutlet weak var doneButtonOutlet: UIBarButtonItem!
     
-    /// to delete the alertentry
+    // to delete the alertentry
     @IBAction func trashButtonAction(_ sender: UIBarButtonItem) {
         // delete the alertentry
         if let alertEntry = alertEntryAsNSObject {
             
             // first ask user if ok to delete and if yes delete
-            let alert = UIAlertController(title: Texts_Alerts.confirmDeletionAlert, message: nil, actionHandler: {
+            UIAlertController(title: Texts_Alerts.confirmDeletionAlert, message: nil, actionHandler: {
                 self.alertSettingsViewControllerData.coreDataManager.mainManagedObjectContext.delete(alertEntry)
                 self.alertSettingsViewControllerData.coreDataManager.saveChanges()
                 // go back to alerts settings screen
                 self.performSegue(withIdentifier: SegueIdentifiers.unwindToAlertsSettingsViewController.rawValue, sender: self)
                 // go back to alerts settings screen
                 self.performSegue(withIdentifier: SegueIdentifiers.unwindToAlertsSettingsViewController.rawValue, sender: self)
-            }, cancelHandler: nil)
-            
-            self.present(alert, animated: true, completion: nil)
+            }, cancelHandler: nil).presentInOwnWindow(animated: true, completion: {})
             
         } else {
             // go back to alerts settings screen
@@ -80,13 +78,13 @@ final class AlertSettingsViewController: UIViewController {
         
         // initialize alertSettingsViewControllerData
         alertSettingsViewControllerData = AlertSettingsViewControllerData(start: alertEntry.start, value: alertEntry.value, alertKind: alertEntry.alertkind, alertType: alertEntry.alertType, minimumStart: minimumStart, maximumStart: maximumStart, uIViewController: self, toCallWhenUserResetsProperties: {
-            self.addButtonOutlet.enable()
-            self.doneButtonOutlet.disable()
+            self.addButtonOutlet.isEnabled = true
+            self.doneButtonOutlet.isEnabled = false
             self.trashButtonOutlet.isEnabled = self.alertSettingsViewControllerData.start != 0
         }, toCallWhenUserChangesProperties: {
-            self.addButtonOutlet.disable()
-            self.doneButtonOutlet.enable()
-            self.trashButtonOutlet.disable()
+            self.addButtonOutlet.isEnabled = false
+            self.doneButtonOutlet.isEnabled = true
+            self.trashButtonOutlet.isEnabled = false
         }, coreDataManager: coreDataManager)
     }
     
@@ -110,7 +108,7 @@ final class AlertSettingsViewController: UIViewController {
         trashButtonOutlet.isEnabled = alertSettingsViewControllerData.start != 0
         
         // initially set done button to disabled, it will get enabled as soon as user changes something, this is done in AlertSettingsViewControllerData
-        doneButtonOutlet.disable()
+        doneButtonOutlet.isEnabled = false
 
         // set toplabel text
         topLabelOutlet.text = Texts_Common.update + " " + AlertSettingsViewControllerData.getAlertKind(alertKind: alertSettingsViewControllerData.alertKind).alertTitle()
@@ -160,13 +158,10 @@ final class AlertSettingsViewController: UIViewController {
 /// defines perform segue identifiers used within AlertSettingsViewController
 extension AlertSettingsViewController {
     
-    public enum SegueIdentifiers: String {
-        
+    public enum SegueIdentifiers:String {
         /// to go from alerts settings screen to alert  settings screen
         case alertsToAlertSettings = "alertsToAlertSettings"
-        
         /// to go back from alert settings screen to alerts settings screen
         case unwindToAlertsSettingsViewController = "unwindToAlertsSettingsViewController"
-        
     }
 }

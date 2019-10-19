@@ -5,9 +5,12 @@ import CoreBluetooth
 import UserNotifications
 import AVFoundation
 import AudioToolbox
+import Charts
+import MessageUI
+import Social
 
 /// viewcontroller for the home screen
-final class RootViewController: UIViewController {
+final class RootViewController: UIViewController, MFMailComposeViewControllerDelegate {
     
     // MARK: - Properties - Outlets and Actions for buttons and labels in home screen
     
@@ -16,11 +19,7 @@ final class RootViewController: UIViewController {
     @IBAction func calibrateButtonAction(_ sender: UIButton) {
         
         if let transmitterType = UserDefaults.standard.transmitterType, transmitterType.canWebOOP(), UserDefaults.standard.webOOPEnabled {
-            
-            let alert = UIAlertController(title: Texts_Common.warning, message: Texts_HomeView.calibrationNotNecessary, actionHandler: nil)
-            
-            self.present(alert, animated: true, completion: nil)
-            
+            UIAlertController(title: Texts_Common.warning, message: Texts_HomeView.calibrationNotNecessary, actionHandler: nil).presentInOwnWindow(animated: true, completion: nil)
         } else {
             requestCalibration(userRequested: true)
         }
@@ -36,16 +35,16 @@ final class RootViewController: UIViewController {
     @IBOutlet weak var preSnoozeButtonOutlet: UIButton!
     
     @IBAction func preSnoozeButtonAction(_ sender: UIButton) {
-        
-        let alert = UIAlertController(title: "Info", message: "Unfortuantely, presnooze functionality is not yet implemented", actionHandler: nil)
-        
-        self.present(alert, animated: true, completion: nil)
-        
+        UIAlertController(title: "Info", message: "Unfortuantely, presnooze functionality is not yet implemented", actionHandler: nil).presentInOwnWindow(animated: true, completion: nil)
     }
     
+    
+    /// outlet for chart that shows reading
+    @IBOutlet weak var lineChartViewOutlet: LineChartView!
     /// outlet for label that shows how many minutes ago and so on
     @IBOutlet weak var minutesLabelOutlet: UILabel!
     
+    @IBOutlet weak var textViewOutlet: UITextView!
     /// outlet for label that shows difference with previous reading
     @IBOutlet weak var diffLabelOutlet: UILabel!
     
@@ -86,10 +85,10 @@ final class RootViewController: UIViewController {
     /// calibrator to be used for calibration, value will depend on transmitter type
     private var calibrator:Calibrator?
     
-    /// BgReadingsAccessor instance
+    /// BgReadings instance
     private var bgReadingsAccessor:BgReadingsAccessor?
     
-    /// CalibrationsAccessor instance
+    /// Calibrations instance
     private var calibrationsAccessor:CalibrationsAccessor?
     
     /// NightScoutUploadManager instance
@@ -125,8 +124,10 @@ final class RootViewController: UIViewController {
     /// timestamp of last notification for pairing
     private var timeStampLastNotificationForPairing:Date?
     
-    private var m5StackManager: M5StackManager?
+    private weak var searchVC: BubbleClientSearchViewController?
     
+    /// log path
+    let path: String = NSHomeDirectory() + "/Documents/log.txt"
     // MARK: - View Life Cycle
     
     override func viewWillAppear(_ animated: Bool) {
@@ -136,11 +137,155 @@ final class RootViewController: UIViewController {
         updateLabels()
     }
     
+    @objc private func webOOPLog(info: Notification) {
+        resetLog()
+        var str = ""
+        if FileManager.default.fileExists(atPath: path) {
+            if let s = try? String.init(contentsOfFile: path) {
+                str = s
+            }
+        }
+        
+        if let new = info.object as? String {
+            str += "\n\(new)"
+        }
+        textViewOutlet.text = str
+        if let data = str.data(using: .utf8) {
+            try? data.write(to: URL.init(fileURLWithPath: path))
+        }
+    }
+    
+    private func resetLog() {
+        let format = DateFormatter()
+        format.dateFormat = "yyyy-MM-dd"
+        let s1 = format.string(from: Date())
+        let s2 = format.string(from: UserDefaults.standard.lastDate)
+        if s1 != s2 {
+            UserDefaults.standard.lastDate = Date()
+            try? Data().write(to: URL.init(fileURLWithPath: path))
+        }
+    }
+    
+    var datas = [String]()
+    func test(_ tString: String? = nil) {
+        guard UserDefaults.standard.isMaster else { return }
+        var data = Data()
+        if let t = tString {
+            data = t.hexadecimal ?? Data()
+            print(data.base64EncodedString())
+        } else {
+            let date = Date()
+            let index = Int((date.timeIntervalSince1970 - UserDefaults.standard.lastDate.timeIntervalSince1970) / 300)
+            guard datas.count > index else {
+                resetLog()
+                test()
+                return
+            }
+            data = datas[index].hexadecimal ?? Data()
+        }
+        data = data.subdata(in: 0..<344)
+        var timeStampLastBgReading = Date(timeIntervalSince1970: 0)
+        if let lastReading = bgReadingsAccessor?.last(forSensor: activeSensor) {
+            timeStampLastBgReading = lastReading.timeStamp
+        }
+        LibreDataParser.libreDataProcessor(sensorSerialNumber: "asdf", webOOPEnabled: true, libreData: data, cgmTransmitterDelegate: self, transmitterBatteryInfo: nil, firmware: nil, hardware: nil, hardwareSerialNumber: nil, bootloader: nil, timeStampLastBgReading: timeStampLastBgReading, completionHandler: {(timeStampLastBgReading:Date) in
+            
+        })
+    }
+    
+    func createDatas() {
+        if let url = Bundle.main.url(forResource: "data", withExtension: "csv") {
+            if let str = try? String.init(contentsOf: url) {
+                datas = str.split(separator: "\r\n").map({ $0.description })
+            }
+        }
+    }
+    
+    func mailComposeController(_ controller: MFMailComposeViewController,
+                               didFinishWith result: MFMailComposeResult, error: Error?) {
+        controller.dismiss(animated: true, completion: nil)
+        switch result {
+        case .sent, .saved:
+            resetLog()
+        default:
+            break
+        }
+    }
+    
     override func viewDidLoad() {
         super.viewDidLoad()
+        resetLog()
+        if FileManager.default.fileExists(atPath: path) {
+            if let s = try? String.init(contentsOfFile: path) {
+                textViewOutlet.text = s
+            }
+        }
         
+        let long = UILongPressGestureRecognizer.init(closure: {
+            _ in
+            let url = URL.init(fileURLWithPath: self.path)
+            let vc = UIActivityViewController.init(activityItems: [url], applicationActivities: nil)
+            self.present(vc, animated: true, completion: nil)
+        })
+        long.minimumPressDuration = 1;
+        view.addGestureRecognizer(long)
+        
+        #if DEBUG
+        createDatas()
+        
+        DispatchQueue.global().async {
+            sleep(15)
+            DispatchQueue.main.async { self.test("1808b012030000000000000000000000000000000000000092210c0cce04c8ec9a00da04c8ec9a00e004c8e09a00ed04c8e89a000405c8e05a001905c8e09a002305c8dc9a003405c8e09a004005c8ec5a004305c8e49a004c05c8d45a005805c8c45a00ac04c8b85a00c004c8d49a00c704c8dc5a00c904c8e09a00fd06c89099009606c8785a002606c8c45a00d305c8885a005d05c8245a00b504c8ac99005b04c8085a00b703c8d859000603c8349a00ce02c88c9a000004c8dc5a00f404c8e89a008005c8f09900b305c8e898000306c81099000406c84859001406c83859004406c85059002c06c86499001506c8cc98001d06c8a89900bb05c88c99003d05c8ac5a00ca04c8345a009d04c86059005d04c8549800b803c85859002704c88459006105c8e499003c06c8505a000c07c8005a004907c85c5900bc4b0000828600084508ef50140796805a00eda610801ac8040e696b")
+            }
+        }
+        
+        let timer = Timer.scheduledTimer(withTimeInterval: 60 * 5, repeats: true, block: {_ in
+            self.test()
+        })
+        RunLoop.current.add(timer, forMode: .common)
+        #endif
         // Setup Core Data Manager - setting up coreDataManager happens asynchronously
-        // completion handler is called when finished. This gives the app time to already continue setup which is independent of coredata, like initializing the views
+        // completion handler is called when finished. This gives the app time to already continue setup which is independent of coredata, like setting up the transmitter, start scanning
+        // In the exceptional case that the transmitter would give a new reading before the DataManager is set up, then this new reading will be ignored
+        
+        
+        
+        // webOOPLog
+        NotificationCenter.default.addObserver(self, selector: #selector(webOOPLog(info:)), name: Notification.Name.init(rawValue: "webOOPLog"), object: nil)
+        
+        
+        lineChartViewOutlet.rightAxis.enabled = false
+        lineChartViewOutlet.highlightPerTapEnabled = false
+        lineChartViewOutlet.scaleYEnabled = false
+        lineChartViewOutlet.legend.form = .none
+        //y
+        let leftAxis = lineChartViewOutlet.leftAxis
+        leftAxis.forceLabelsEnabled = false
+        leftAxis.axisLineColor = UIColor.black
+        leftAxis.labelTextColor = UIColor.black
+        leftAxis.labelFont = UIFont.systemFont(ofSize: 10)
+        leftAxis.gridColor = .clear
+        leftAxis.axisMaximum = 16
+        leftAxis.axisMinimum = 0
+        leftAxis.labelCount = 5
+        leftAxis.labelPosition = .insideChart
+        let noZeroFormatter = NumberFormatter()
+        noZeroFormatter.zeroSymbol = ""
+        leftAxis.valueFormatter = DefaultAxisValueFormatter.init(formatter: noZeroFormatter)
+        
+        //x
+        let xAxis = lineChartViewOutlet.xAxis
+        xAxis.granularityEnabled = true
+        xAxis.labelTextColor = UIColor.black
+        xAxis.labelFont = UIFont.systemFont(ofSize: 10.0)
+        xAxis.labelPosition = .bottom
+        xAxis.gridColor = .clear
+        xAxis.axisLineColor = UIColor.black
+        xAxis.axisMaximum = 24
+        xAxis.axisMinimum = 0
+        lineChartViewOutlet.zoom(scaleX: 4, scaleY: 1, x: 0, y:0)
+        
+        
         coreDataManager = CoreDataManager(modelName: ConstantsCoreData.modelName, completion: {
             
             self.setupApplicationData()
@@ -166,11 +311,7 @@ final class RootViewController: UIViewController {
             , context: nil)
         UserDefaults.standard.addObserver(self, forKeyPath: UserDefaults.Key.webOOPEnabled.rawValue, options: .new
             , context: nil)
-        UserDefaults.standard.addObserver(self, forKeyPath: UserDefaults.Key.webOOPtoken.rawValue, options: .new
-            , context: nil)
-        UserDefaults.standard.addObserver(self, forKeyPath: UserDefaults.Key.webOOPsite.rawValue, options: .new
-            , context: nil)
-
+        
         // setup delegate for UNUserNotificationCenter
         UNUserNotificationCenter.current().delegate = self
         
@@ -196,19 +337,15 @@ final class RootViewController: UIViewController {
         
         // if licenseinfo not yet accepted, show license info with only ok button
         if !UserDefaults.standard.licenseInfoAccepted {
-            let alert = UIAlertController(title: ConstantsHomeView.applicationName, message: Texts_HomeView.licenseInfo + ConstantsHomeView.infoEmailAddress, actionHandler: {
+            UIAlertController(title: ConstantsHomeView.applicationName, message: Texts_HomeView.licenseInfo + ConstantsHomeView.infoEmailAddress, actionHandler: {
                 
                 // set licenseInfoAccepted to true
                 UserDefaults.standard.licenseInfoAccepted = true
                 
                 // create info screen about transmitters
-                let infoScreenAlert = UIAlertController(title: Texts_HomeView.info, message: Texts_HomeView.transmitterInfo, actionHandler: nil)
+                UIAlertController(title: Texts_HomeView.info, message: Texts_HomeView.transmitterInfo, actionHandler: nil).presentInOwnWindow(animated: true, completion: nil)
                 
-                self.present(infoScreenAlert, animated: true, completion: nil)
-                
-            })
-            
-            self.present(alert, animated: true, completion: nil)
+            }).presentInOwnWindow(animated: true, completion: nil)
         }
         
         // whenever app comes from-back to freground, updateLabels needs to be called
@@ -252,11 +389,7 @@ final class RootViewController: UIViewController {
         
         // setup nightscout synchronizer
         nightScoutUploadManager = NightScoutUploadManager(bgReadingsAccessor: bgReadingsAccessor, messageHandler: { (title:String, message:String) in
-            
-            let alert = UIAlertController(title: title, message: message, actionHandler: nil)
-            
-            self.present(alert, animated: true, completion: nil)
-            
+            UIAlertController(title: title, message: message, actionHandler: nil).presentInOwnWindow(animated: true, completion: {})
         })
         
         // setup SoundPlayer
@@ -279,15 +412,8 @@ final class RootViewController: UIViewController {
         
         // setup dexcomShareUploadManager
         dexcomShareUploadManager = DexcomShareUploadManager(bgReadingsAccessor: bgReadingsAccessor, messageHandler: { (title:String, message:String) in
-            
-            let alert = UIAlertController(title: title, message: message, actionHandler: nil)
-            
-            self.present(alert, animated: true, completion: nil)
-            
+            UIAlertController(title: title, message: message, actionHandler: nil).presentInOwnWindow(animated: true, completion: {})
         })
-        
-        // setup m5StackManager
-        m5StackManager = M5StackManager(coreDataManager: coreDataManager)
     }
     
     /// process new glucose data received from transmitter.
@@ -295,6 +421,10 @@ final class RootViewController: UIViewController {
     ///     - glucoseData : array with new readings
     ///     - sensorTimeInMinutes : should be present only if it's the first reading(s) being processed for a specific sensor and is needed if it's a transmitterType that returns true to the function canDetectNewSensor
     private func processNewGlucoseData(glucoseData: inout [GlucoseData], sensorTimeInMinutes: Int?) {
+        
+        for glucose in glucoseData {
+            debuglogging(glucose.description)
+        }
         
         // check that calibrations and coredata manager is not nil
         guard let calibrationsAccessor = calibrationsAccessor, let coreDataManager = coreDataManager else {
@@ -328,28 +458,35 @@ final class RootViewController: UIViewController {
             
             // was a new reading created or not
             var newReadingCreated = false
-            
-            // assign value of timeStampLastBgReading
-            var timeStampLastBgReading = Date(timeIntervalSince1970: 0)
-            if let lastReading = bgReadingsAccessor.last(forSensor: activeSensor) {
-                timeStampLastBgReading = lastReading.timeStamp
+            // iterate through array, elements are ordered by timestamp, first is the youngest, let's create first the oldest, although it shouldn't matter in what order the readings are created
+            var glucoseData = glucoseData
+            if let last = bgReadingsAccessor.last(forSensor: activeSensor) {
+                glucoseData = glucoseData.filter({ $0.timeStamp > last.timeStamp })
             }
             
-            // iterate through array, elements are ordered by timestamp, first is the youngest, let's create first the oldest, although it shouldn't matter in what order the readings are created
-            for (_, glucose) in glucoseData.enumerated().reversed() {
-                if glucose.timeStamp > timeStampLastBgReading {
-                    
-                    _ = calibrator.createNewBgReading(rawData: (Double)(glucose.glucoseLevelRaw), filteredData: (Double)(glucose.glucoseLevelRaw), timeStamp: glucose.timeStamp, sensor: activeSensor, last3Readings: &latest3BgReadings, lastCalibrationsForActiveSensorInLastXDays: &lastCalibrationsForActiveSensorInLastXDays, firstCalibration: firstCalibrationForActiveSensor, lastCalibration: lastCalibrationForActiveSensor, deviceName: UserDefaults.standard.cgmTransmitterDeviceName, nsManagedObjectContext: coreDataManager.mainManagedObjectContext)
-                    
+            var params = "["
+            for glucose in glucoseData {
+                guard glucose.timeStamp.timeIntervalSince1970 < Date().timeIntervalSince1970 else { continue }
+                if !bgReadingsAccessor.judgeReading(fromDate: glucose.timeStamp.addingTimeInterval(-60 * 4), toDate: glucose.timeStamp.addingTimeInterval(60 * 4), sensor: activeSensor) {
+                    _ = calibrator.createNewBgReading(rawData: (Double)(glucose.glucoseLevelRaw), filteredData: (Double)(glucose.glucoseLevelRaw), timeStamp: glucose.timeStamp, sensor: activeSensor, last3Readings: &latest3BgReadings, lastCalibrationsForActiveSensorInLastXDays: &lastCalibrationsForActiveSensorInLastXDays, firstCalibration: firstCalibrationForActiveSensor, lastCalibration: lastCalibrationForActiveSensor, deviceName:UserDefaults.standard.bluetoothDeviceName, nsManagedObjectContext: coreDataManager.mainManagedObjectContext)
+                    print("date: \(glucose.timeStamp), value: \(glucose.glucoseLevelRaw)")
                     // save the newly created bgreading permenantly in coredata
                     coreDataManager.saveChanges()
                     
                     // a new reading was created
                     newReadingCreated = true
                     
-                    // set timeStampLastBgReading to new timestamp
-                    timeStampLastBgReading = glucose.timeStamp
+                    
+                    params +=
+                    """
+                    {"ts": \(glucose.timeStamp), "glucose": \(glucose.glucoseLevelRaw)},\n
+                    """
                 }
+            }
+            
+            params += "]"
+            if params.count > 4 {
+                NotificationCenter.default.post(name: Notification.Name.init(rawValue: "webOOPLog"), object: params)
             }
             
             // if a new reading is created, created either initial calibration request or bgreading notification - upload to nightscout and check alerts
@@ -371,18 +508,25 @@ final class RootViewController: UIViewController {
                     updateLabels()
                 }
                 
-                nightScoutUploadManager?.upload()
+                if let nightScoutUploadManager = nightScoutUploadManager {
+                    nightScoutUploadManager.upload()
+                }
                 
-                alertManager?.checkAlerts(maxAgeOfLastBgReadingInSeconds: ConstantsMaster.maximumBgReadingAgeForAlertsInSeconds)
+                if let alertManager = alertManager {
+                    alertManager.checkAlerts(maxAgeOfLastBgReadingInSeconds: ConstantsMaster.maximumBgReadingAgeForAlertsInSeconds)
+                }
                 
-                healthKitManager?.storeBgReadings()
-
-                bgReadingSpeaker?.speakNewReading()
+                if let healthKitManager = healthKitManager {
+                    healthKitManager.storeBgReadings()
+                }
                 
-                dexcomShareUploadManager?.upload()
+                if let bgReadingSpeaker = bgReadingSpeaker {
+                    bgReadingSpeaker.speakNewReading()
+                }
                 
-                m5StackManager?.sendLatestReading()
-                
+                if let dexcomShareUploadManager = dexcomShareUploadManager {
+                    dexcomShareUploadManager.upload()
+                }
             }
         }
         
@@ -440,9 +584,6 @@ final class RootViewController: UIViewController {
                         }
                     }
                     
-                case UserDefaults.Key.webOOPtoken, UserDefaults.Key.webOOPsite:
-                    cgmTransmitter?.setWebOOPSiteAndToken(oopWebSite: UserDefaults.standard.webOOPSite ?? ConstantsLibreOOP.site, oopWebToken: UserDefaults.standard.webOOPtoken ?? ConstantsLibreOOP.token)
-                    
                 default:
                     break
                 }
@@ -466,11 +607,7 @@ final class RootViewController: UIViewController {
     
     // inform user that pairing request timed out
     @objc private func informUserThatPairingTimedOut() {
-        
-        let alert = UIAlertController(title: Texts_Common.warning, message: "time out", actionHandler: nil)
-        
-        self.present(alert, animated: true, completion: nil)
-        
+        UIAlertController(title: Texts_Common.warning, message: "time out", actionHandler: nil).presentInOwnWindow(animated: true, completion: nil)
     }
     
     /// will call cgmTransmitter.initiatePairing() - also sets timer, if no successful pairing within a few seconds, then info will be given to user asking to wait another few minutes
@@ -534,21 +671,13 @@ final class RootViewController: UIViewController {
         
         // check if sensor active and if not don't continue
         guard let activeSensor = activeSensor else {
-            
-            let alert = UIAlertController(title: Texts_HomeView.info, message: Texts_HomeView.startSensorBeforeCalibration, actionHandler: nil)
-            
-            self.present(alert, animated: true, completion: nil)
-            
+            UIAlertController(title: Texts_HomeView.info, message: Texts_HomeView.startSensorBeforeCalibration, actionHandler: nil).presentInOwnWindow(animated: true, completion: nil)
             return
         }
         
         // if it's a user requested calibration, but there's no calibration yet, then give info and return - first calibration will be requested by app via notification
         if calibrationsAccessor.firstCalibrationForActiveSensor(withActivesensor: activeSensor) == nil && userRequested {
-            
-            let alert = UIAlertController(title: Texts_HomeView.info, message: Texts_HomeView.thereMustBeAreadingBeforeCalibration, actionHandler: nil)
-            
-            self.present(alert, animated: true, completion: nil)
-            
+            UIAlertController(title: Texts_HomeView.info, message: Texts_HomeView.thereMustBeAreadingBeforeCalibration, actionHandler: nil).presentInOwnWindow(animated: true, completion: nil)
             return
         }
         
@@ -576,12 +705,12 @@ final class RootViewController: UIViewController {
                             if let calibrator = self.calibrator {
                                 if latestCalibrations.count == 0 {
                                     // calling initialCalibration will create two calibrations, they are returned also but we don't need them
-                                    _ = calibrator.initialCalibration(firstCalibrationBgValue: valueAsDouble, firstCalibrationTimeStamp: Date(timeInterval: -(5*60), since: Date()), secondCalibrationBgValue: valueAsDouble, sensor: activeSensor, lastBgReadingsWithCalculatedValue0AndForSensor: &latestReadings, deviceName: UserDefaults.standard.cgmTransmitterDeviceName, nsManagedObjectContext: coreDataManager.mainManagedObjectContext)
+                                    _ = calibrator.initialCalibration(firstCalibrationBgValue: valueAsDouble, firstCalibrationTimeStamp: Date(timeInterval: -(5*60), since: Date()), secondCalibrationBgValue: valueAsDouble, sensor: activeSensor, lastBgReadingsWithCalculatedValue0AndForSensor: &latestReadings, deviceName:UserDefaults.standard.bluetoothDeviceName, nsManagedObjectContext: coreDataManager.mainManagedObjectContext)
                                 } else {
                                     // it's not the first calibration
                                     if let firstCalibrationForActiveSensor = calibrationsAccessor.firstCalibrationForActiveSensor(withActivesensor: activeSensor) {
                                         // calling createNewCalibration will create a new  calibrations, it is returned but we don't need it
-                                        _ = calibrator.createNewCalibration(bgValue: valueAsDouble, lastBgReading: latestReadings[0], sensor: activeSensor, lastCalibrationsForActiveSensorInLastXDays: &latestCalibrations, firstCalibration: firstCalibrationForActiveSensor, deviceName: UserDefaults.standard.cgmTransmitterDeviceName, nsManagedObjectContext: coreDataManager.mainManagedObjectContext)
+                                        _ = calibrator.createNewCalibration(bgValue: valueAsDouble, lastBgReading: latestReadings[0], sensor: activeSensor, lastCalibrationsForActiveSensorInLastXDays: &latestCalibrations, firstCalibration: firstCalibrationForActiveSensor, deviceName:UserDefaults.standard.bluetoothDeviceName, nsManagedObjectContext: coreDataManager.mainManagedObjectContext)
                                     }
                                 }
                                 
@@ -631,35 +760,35 @@ final class RootViewController: UIViewController {
                 
             case .dexcomG4:
                 if let currentTransmitterId = UserDefaults.standard.transmitterId {
-                    cgmTransmitter = CGMG4xDripTransmitter(address: UserDefaults.standard.cgmTransmitterDeviceAddress, name: UserDefaults.standard.cgmTransmitterDeviceName, transmitterID: currentTransmitterId, delegate:self)
+                    cgmTransmitter = CGMG4xDripTransmitter(address: UserDefaults.standard.bluetoothDeviceAddress, transmitterID: currentTransmitterId, delegate:self)
                 }
                 
             case .dexcomG5:
                 if let currentTransmitterId = UserDefaults.standard.transmitterId {
-                    cgmTransmitter = CGMG5Transmitter(address: UserDefaults.standard.cgmTransmitterDeviceAddress, name: UserDefaults.standard.cgmTransmitterDeviceName, transmitterID: currentTransmitterId, delegate: self)
+                    cgmTransmitter = CGMG5Transmitter(address: UserDefaults.standard.bluetoothDeviceAddress, transmitterID: currentTransmitterId, delegate: self)
                 }
                 
             case .dexcomG6:
                 if let currentTransmitterId = UserDefaults.standard.transmitterId {
-                    cgmTransmitter = CGMG6Transmitter(address: UserDefaults.standard.cgmTransmitterDeviceAddress, name: UserDefaults.standard.cgmTransmitterDeviceName, transmitterID: currentTransmitterId, delegate: self)
+                    cgmTransmitter = CGMG6Transmitter(address: UserDefaults.standard.bluetoothDeviceAddress, transmitterID: currentTransmitterId, delegate: self)
                 }
                 
             case .miaomiao:
-                cgmTransmitter = CGMMiaoMiaoTransmitter(address: UserDefaults.standard.cgmTransmitterDeviceAddress, name: UserDefaults.standard.cgmTransmitterDeviceName, delegate: self, timeStampLastBgReading: Date(timeIntervalSince1970: 0), webOOPEnabled: UserDefaults.standard.webOOPEnabled, oopWebSite: UserDefaults.standard.webOOPSite ?? ConstantsLibreOOP.site, oopWebToken: UserDefaults.standard.webOOPtoken ?? ConstantsLibreOOP.token)
+                cgmTransmitter = CGMMiaoMiaoTransmitter(address: UserDefaults.standard.bluetoothDeviceAddress, delegate: self, timeStampLastBgReading: Date(timeIntervalSince1970: 0), webOOPEnabled: UserDefaults.standard.webOOPEnabled)
                 
             case .Bubble:
-                cgmTransmitter = CGMBubbleTransmitter(address: UserDefaults.standard.cgmTransmitterDeviceAddress, name: UserDefaults.standard.cgmTransmitterDeviceName, delegate: self, timeStampLastBgReading: Date(timeIntervalSince1970: 0), sensorSerialNumber: UserDefaults.standard.sensorSerialNumber, webOOPEnabled: UserDefaults.standard.webOOPEnabled, oopWebSite: UserDefaults.standard.webOOPSite ?? ConstantsLibreOOP.site, oopWebToken: UserDefaults.standard.webOOPtoken ?? ConstantsLibreOOP.token)
+                cgmTransmitter = CGMBubbleTransmitter(address: UserDefaults.standard.bluetoothDeviceAddress, delegate: self, timeStampLastBgReading: Date(timeIntervalSince1970: 0), sensorSerialNumber: UserDefaults.standard.sensorSerialNumber, webOOPEnabled: UserDefaults.standard.webOOPEnabled)
                 
             case .GNSentry:
-                cgmTransmitter = CGMGNSEntryTransmitter(address: UserDefaults.standard.cgmTransmitterDeviceAddress, name: UserDefaults.standard.cgmTransmitterDeviceName, delegate: self, timeStampLastBgReading: Date(timeIntervalSince1970: 0))
+                cgmTransmitter = CGMGNSEntryTransmitter(address: UserDefaults.standard.bluetoothDeviceAddress, delegate: self, timeStampLastBgReading: Date(timeIntervalSince1970: 0))
                 
             case .Blucon:
                 if let currentTransmitterId = UserDefaults.standard.transmitterId {
-                    cgmTransmitter = CGMBluconTransmitter(address: UserDefaults.standard.cgmTransmitterDeviceAddress, name: UserDefaults.standard.cgmTransmitterDeviceName, transmitterID: currentTransmitterId, delegate: self, timeStampLastBgReading: Date(timeIntervalSince1970: 0), sensorSerialNumber: UserDefaults.standard.sensorSerialNumber)
+                    cgmTransmitter = CGMBluconTransmitter(address: UserDefaults.standard.bluetoothDeviceAddress, transmitterID: currentTransmitterId, delegate: self, timeStampLastBgReading: Date(timeIntervalSince1970: 0), sensorSerialNumber: UserDefaults.standard.sensorSerialNumber)
                 }
                 
             case .Droplet1:
-                cgmTransmitter = CGMDroplet1Transmitter(address: UserDefaults.standard.cgmTransmitterDeviceAddress, name: UserDefaults.standard.cgmTransmitterDeviceName, delegate: self)
+                cgmTransmitter = CGMDroplet1Transmitter(address: UserDefaults.standard.bluetoothDeviceAddress, delegate: self)
                 
             }
             
@@ -806,21 +935,93 @@ final class RootViewController: UIViewController {
     @objc private func updateLabels() {
         
         // check that bgReadingsAccessor exists, otherwise return - this happens if updateLabels is called from viewDidload at app launch
-        
         guard let bgReadingsAccessor = bgReadingsAccessor else {return}
+        
+        let latestReadings = bgReadingsAccessor.getLatestBgReadings(limit: nil, howOld: 1, forSensor: nil, ignoreRawData: true, ignoreCalculatedValue: false)
+
+        
+        // points
+        var colors = [UIColor]()
+        var dataEntries = [ChartDataEntry]()
+        let oneHour = TimeInterval(60 * 60) // seconds
+        let calendar = Calendar.current
+        let com = calendar.dateComponents([.hour, .minute, .second], from: Date())
+        var oneDayAgo = Date().timeIntervalSince1970 - TimeInterval(com.hour ?? 0) * oneHour
+        oneDayAgo -= TimeInterval(com.minute ?? 0) * 60
+        oneDayAgo -= TimeInterval(com.second ?? 0)
+        var max = 16
+        if UserDefaults.standard.bloodGlucoseUnitIsMgDl {
+            max = 200
+        }
+        for reading in latestReadings {
+            let x = (reading.timeStamp.timeIntervalSince1970 - oneDayAgo) / oneHour
+            var y = Double(reading.calculatedValue.mgdlToMmolAndToString(mgdl: UserDefaults.standard.bloodGlucoseUnitIsMgDl)) ?? 0
+            if y.isNaN {
+                y = 0
+            }
+            let entry = ChartDataEntry.init(x: Double(x), y: y)
+            
+            if y < UserDefaults.standard.lowMarkValueInUserChosenUnit || y > UserDefaults.standard.highMarkValueInUserChosenUnit {
+                colors.insert(.red, at: 0)
+            } else {
+                colors.insert(.green, at: 0)
+            }
+            
+            dataEntries.insert(entry, at: 0)
+            if Int(y) > max {
+                max = Int(y)
+            }
+        }
+        
+        lineChartViewOutlet.leftAxis.removeAllLimitLines()
+        let limitLine3 = ChartLimitLine.init(limit: UserDefaults.standard.lowMarkValueInUserChosenUnit, label: String.init(format: "%.1f", UserDefaults.standard.lowMarkValueInUserChosenUnit))
+        limitLine3.lineColor = .green
+        limitLine3.valueTextColor = .green
+        limitLine3.lineWidth = 1
+        limitLine3.lineDashLengths = [5.0, 5.0]
+        lineChartViewOutlet.leftAxis.addLimitLine(limitLine3)
+        
+        let limitLine9 = ChartLimitLine.init(limit: UserDefaults.standard.highMarkValueInUserChosenUnit, label: String.init(format: "%.1f", UserDefaults.standard.highMarkValueInUserChosenUnit))
+        limitLine9.lineColor = .green
+        limitLine9.valueTextColor = .green
+        limitLine9.lineWidth = 1
+        limitLine9.lineDashLengths = [5.0, 5.0]
+        lineChartViewOutlet.leftAxis.addLimitLine(limitLine9)
+
+        let chartDataSet = LineChartDataSet(entries: dataEntries, label: "")
+        chartDataSet.mode = .cubicBezier
+        chartDataSet.circleColors = colors
+        chartDataSet.circleRadius = 2
+        chartDataSet.drawValuesEnabled = false
+        chartDataSet.drawCircleHoleEnabled = false
+        chartDataSet.colors = [.clear]
+
+        if UserDefaults.standard.bloodGlucoseUnitIsMgDl {
+            max = max < 200 ? 200 : max
+        } else {
+            max = max < 16 ? 16 : max
+        }
+        lineChartViewOutlet.leftAxis.axisMaximum = Double(max)
+        lineChartViewOutlet.data = LineChartData(dataSets: [chartDataSet])
+        if let entry = dataEntries.last {
+            var x = entry.x - (24 / Double(lineChartViewOutlet.scaleX)) / 2
+            x = x > 0 ? x : 0
+            lineChartViewOutlet.moveViewToX(x)
+        }
         
         // last reading and lateButOneReading variable definition - optional
         var lastReading:BgReading?
         var lastButOneReading:BgReading?
         
         // assign latestReading if it exists
-        let latestReadings = bgReadingsAccessor.getLatestBgReadings(limit: 2, howOld: 1, forSensor: nil, ignoreRawData: false, ignoreCalculatedValue: false)
+//        let latestReadings = bgReadingsAccessor.getLatestBgReadings(limit: 2, howOld: 1, forSensor: nil, ignoreRawData: false, ignoreCalculatedValue: false)
         if latestReadings.count > 0 {
             lastReading = latestReadings[0]
         }
         if latestReadings.count > 1 {
             lastButOneReading = latestReadings[1]
         }
+        
         
         // get latest reading, doesn't matter if it's for an active sensor or not, but it needs to have calculatedValue > 0 / which means, if user would have started a new sensor, but didn't calibrate yet, and a reading is received, then there's no going to be a latestReading
         if let lastReading = lastReading {
@@ -848,15 +1049,18 @@ final class RootViewController: UIViewController {
                 valueLabelOutlet.textColor = UIColor.red
             } else if lastReading.calculatedValue >= UserDefaults.standard.highMarkValueInUserChosenUnit.mmolToMgdl(mgdl: UserDefaults.standard.bloodGlucoseUnitIsMgDl) {
                 valueLabelOutlet.textColor = "#a0b002".hexStringToUIColor()
+                valueLabelOutlet.textColor = UIColor.red
             } else {
-                valueLabelOutlet.textColor = UIColor.black
+                valueLabelOutlet.textColor = UIColor.green
             }
             
             // get minutes ago and create text for minutes ago label
             let minutesAgo = -Int(lastReading.timeStamp.timeIntervalSinceNow) / 60
             let minutesAgoText = minutesAgo.description + " " + (minutesAgo == 1 ? Texts_Common.minute:Texts_Common.minutes) + " " + Texts_HomeView.ago
             
-            minutesLabelOutlet.text = minutesAgoText
+            let format = DateFormatter.init()
+            format.dateFormat = "H:mm"
+            minutesLabelOutlet.text = format.string(from: lastReading.timeStamp)
             
             // create delta text
             diffLabelOutlet.text = lastReading.unitizedDeltaString(previousBgReading: lastButOneReading, showUnit: true, highGranularity: true, mgdl: UserDefaults.standard.bloodGlucoseUnitIsMgDl)
@@ -884,7 +1088,7 @@ final class RootViewController: UIViewController {
                 if !transmitterType.startScanningAfterInit() {
                     // it's a transmitter for which user needs to initiate the scanning
                     // see if bluetoothDeviceAddress is known, results determines next action to add
-                    if UserDefaults.standard.cgmTransmitterDeviceAddress == nil {
+                    if UserDefaults.standard.bluetoothDeviceAddress == nil {
                         listOfActions[Texts_HomeView.scanBluetoothDeviceActionTitle] = {(UIAlertAction) in self.userInitiatesStartScanning()}
                     } else {
                         listOfActions[Texts_HomeView.forgetBluetoothDeviceActionTitle] = {(UIAlertAction) in self.forgetDevice()}
@@ -927,7 +1131,7 @@ final class RootViewController: UIViewController {
         // add transmitter info
         // first the name
         textToShow += Texts_HomeView.transmitter + " : "
-        if let deviceName = UserDefaults.standard.cgmTransmitterDeviceName {
+        if let deviceName = UserDefaults.standard.bluetoothDeviceName {
             textToShow += deviceName
         } else {
             textToShow += Texts_HomeView.notKnown
@@ -957,9 +1161,7 @@ final class RootViewController: UIViewController {
         }
         
         // display textoToshow
-        let alert = UIAlertController(title: Texts_HomeView.statusActionTitle, message: textToShow, actionHandler: nil)
-        
-        self.present(alert, animated: true, completion: nil)
+        UIAlertController(title: Texts_HomeView.statusActionTitle, message: textToShow, actionHandler: nil).presentInOwnWindow(animated: true, completion: nil)
         
     }
     
@@ -967,6 +1169,15 @@ final class RootViewController: UIViewController {
     private func userInitiatesStartScanning() {
         
         // start the scanning, result of the startscanning will be in startScanningResult - this is not the result of the scanning itself. Scanning may have started successfully but maybe the peripheral is not yet connected, maybe it is
+        if let selectedTransmitterType = UserDefaults.standard.transmitterType {
+            if selectedTransmitterType == .Bubble {
+                let vc = BubbleClientSearchViewController()
+                searchVC = vc
+                vc.cgmTransmitter = cgmTransmitter
+                let nav = UINavigationController.init(rootViewController: vc)
+                present(nav, animated: true, completion: nil)
+            }
+        }
         if let startScanningResult = cgmTransmitter?.startScanning() {
             trace("in userInitiatesStartScanning, startScanningResult = %{public}@", log: log, type: .info, startScanningResult.description())
             switch startScanningResult {
@@ -981,22 +1192,13 @@ final class RootViewController: UIViewController {
                 break
             case .alreadyScanning:
                 // probably user started scanning two times, let's show a pop up that scanning is ongoing
-                let alert = UIAlertController(title: Texts_HomeView.scanBluetoothDeviceActionTitle, message: Texts_HomeView.scanBluetoothDeviceOngoing, actionHandler: nil)
-                
-                self.present(alert, animated: true, completion: nil)
-                
+                UIAlertController(title: Texts_HomeView.scanBluetoothDeviceActionTitle, message: Texts_HomeView.scanBluetoothDeviceOngoing, actionHandler: nil).presentInOwnWindow(animated: true, completion: nil)
             case .bluetoothNotPoweredOn( _):
                 // bluetooth is not on, user should switch it on
-                let alert = UIAlertController(title: Texts_HomeView.scanBluetoothDeviceActionTitle, message: Texts_HomeView.bluetoothIsNotOn, actionHandler: nil)
-                
-                self.present(alert, animated: true, completion: nil)
-                
+                UIAlertController(title: Texts_HomeView.scanBluetoothDeviceActionTitle, message: Texts_HomeView.bluetoothIsNotOn, actionHandler: nil).presentInOwnWindow(animated: true, completion: nil)
             case .other(let reason):
                 // other unknown error occured
-                let alert = UIAlertController(title: Texts_HomeView.scanBluetoothDeviceActionTitle, message: "Error while starting scanning. Reason : " + reason, actionHandler: nil)
-                
-                self.present(alert, animated: true, completion: nil)
-                
+                UIAlertController(title: Texts_HomeView.scanBluetoothDeviceActionTitle, message: "Error while starting scanning. Reason : " + reason, actionHandler: nil).presentInOwnWindow(animated: true, completion: nil)
             }
         }
     }
@@ -1011,8 +1213,8 @@ final class RootViewController: UIViewController {
     private func forgetDevice() {
         
         // set device address and name to nil in userdefaults
-        UserDefaults.standard.cgmTransmitterDeviceAddress = nil
-        UserDefaults.standard.cgmTransmitterDeviceName =  nil
+        UserDefaults.standard.bluetoothDeviceAddress = nil
+        UserDefaults.standard.bluetoothDeviceName =  nil
         
         // setting cgmTransmitter to nil,  the deinit function of the currently used cgmTransmitter will be called, which will disconnect the device
         // set cgmTransmitter to nil, this will call the deinit function which will disconnect first
@@ -1066,7 +1268,7 @@ final class RootViewController: UIViewController {
         // if this is the first time user starts a sensor, give warning that time should be correct
         // if not the first them, then immediately open the timePickAlertController
         if (!UserDefaults.standard.startSensorTimeInfoGiven) {
-            let alert = UIAlertController(title: Texts_HomeView.startSensorActionTitle, message: Texts_HomeView.startSensorTimeInfo, actionHandler: {
+            UIAlertController(title: Texts_HomeView.startSensorActionTitle, message: Texts_HomeView.startSensorTimeInfo, actionHandler: {
                 
                 // create and present pickerviewcontroller
                 DatePickerViewController.displayDatePickerViewController(datePickerViewData: datePickerViewData, parentController: self)
@@ -1074,10 +1276,7 @@ final class RootViewController: UIViewController {
                 // no need to display sensor start time info next sensor start
                 UserDefaults.standard.startSensorTimeInfoGiven = true
                 
-            })
-            
-            self.present(alert, animated: true, completion: nil)
-            
+            }).presentInOwnWindow(animated: true, completion: nil)
         } else {
             DatePickerViewController.displayDatePickerViewController(datePickerViewData: datePickerViewData, parentController: self)
         }
@@ -1091,12 +1290,8 @@ final class RootViewController: UIViewController {
 /// conform to CGMTransmitterDelegate
 extension RootViewController:CGMTransmitterDelegate {
     
-    func error(message: String) {
-        
-        let alert = UIAlertController(title: Texts_Common.warning, message: message, actionHandler: nil)
-        
-        self.present(alert, animated: true, completion: nil)
-        
+    func list(list: [BluetoothPeripheral]) {
+        searchVC?.list = list
     }
     
     func reset(successful: Bool) {
@@ -1143,27 +1338,21 @@ extension RootViewController:CGMTransmitterDelegate {
         }
         
         // inform user
-        let alert = UIAlertController(title: Texts_HomeView.info, message: Texts_HomeView.transmitterPairingSuccessful, actionHandler: nil)
-        
-        self.present(alert, animated: true, completion: nil)
-        
+        UIAlertController(title: Texts_HomeView.info, message: Texts_HomeView.transmitterPairingSuccessful, actionHandler: nil).presentInOwnWindow(animated: true, completion: nil)
     }
     
     func cgmTransmitterDidConnect(address:String?, name:String?) {
         // store address and name, if this is the first connect to a specific device, then this address and name will be used in the future to reconnect to the same device, without having to scan
         if let address = address, let name = name {
-            UserDefaults.standard.cgmTransmitterDeviceAddress = address
-            UserDefaults.standard.cgmTransmitterDeviceName =  name
+            UserDefaults.standard.bluetoothDeviceAddress = address
+            UserDefaults.standard.bluetoothDeviceName =  name
         }
         
         // if the connect is a result of a user initiated start scanning, then display message that connection was successful
         if userDidInitiateScanning {
             userDidInitiateScanning = false
             // additional info for the user
-            let alert = UIAlertController(title: Texts_HomeView.scanBluetoothDeviceActionTitle, message: Texts_HomeView.bluetoothDeviceConnectedInfo, actionHandler: nil)
-            
-            self.present(alert, animated: true, completion: nil)
-            
+            UIAlertController(title: Texts_HomeView.scanBluetoothDeviceActionTitle, message: Texts_HomeView.bluetoothDeviceConnectedInfo, actionHandler: nil).presentInOwnWindow(animated: true, completion: nil)
         }
     }
     
@@ -1188,15 +1377,14 @@ extension RootViewController:CGMTransmitterDelegate {
             UserDefaults.standard.lastdisConnectTimestamp = Date()
         case .poweredOn:
             // user changes device bluetooth status to on
-
-            if UserDefaults.standard.cgmTransmitterDeviceAddress == nil, let cgmTransmitter = cgmTransmitter, let transmitterType  = UserDefaults.standard.transmitterType, transmitterType.startScanningAfterInit() {
+            if UserDefaults.standard.bluetoothDeviceAddress == nil, let cgmTransmitter = cgmTransmitter, let transmitterType  = UserDefaults.standard.transmitterType, transmitterType.startScanningAfterInit() {
                 // bluetoothDeviceAddress = nil, means app hasn't connected before to the transmitter
                 // cgmTransmitter != nil, means user has configured transmitter type and transmitterid
                 // transmitterType.startScanningAfterInit() gives true, means it's ok to start the scanning
                 // possibly scanning is already running, but that's ok if we call the startScanning function again
                 _ = cgmTransmitter.startScanning()
             }
-
+            
         @unknown default:
             break
         }
@@ -1265,10 +1453,7 @@ extension RootViewController:CGMTransmitterDelegate {
             // if it was too long since notification was fired, then forget about it
             if Date() > maxTimeUserCanOpenApp {
                 trace("in cgmTransmitterNeedsPairing, user opened the app too late", log: self.log, type: .error)
-                let alert = UIAlertController(title: Texts_Common.warning, message: Texts_HomeView.transmitterPairingTooLate, actionHandler: nil)
-                
-                self.present(alert, animated: true, completion: nil)
-                
+                UIAlertController(title: Texts_Common.warning, message: Texts_HomeView.transmitterPairingTooLate, actionHandler: nil).presentInOwnWindow(animated: true, completion: nil)
                 return
             }
             
@@ -1344,21 +1529,13 @@ extension RootViewController:CGMTransmitterDelegate {
 
 /// conform to UITabBarControllerDelegate, want to receive info when user clicks specific tabs
 extension RootViewController: UITabBarControllerDelegate {
-    
     func tabBarController(_ tabBarController: UITabBarController, didSelect viewController: UIViewController) {
         
-        // check which tab is being clicked
-        if let navigationController = viewController as? SettingsNavigationController, let coreDataManager = coreDataManager, let soundPlayer = soundPlayer {
-            
+        // if user clicks the tab for settings, then configure it
+        if let navigationController = viewController as? SettingsNavigationController {
             navigationController.configure(coreDataManager: coreDataManager, soundPlayer: soundPlayer)
-            
-        } else if let navigationController = viewController as? M5StackNavigationController, let m5StackManager = m5StackManager, let coreDataManager = coreDataManager {
-
-            navigationController.configure(coreDataManager: coreDataManager, m5StackManager: m5StackManager)
-            
         }
     }
-    
 }
 
 // MARK: - conform to UNUserNotificationCenterDelegate protocol
@@ -1428,9 +1605,7 @@ extension RootViewController:UNUserNotificationCenterDelegate {
         } else if response.notification.request.identifier == ConstantsNotifications.NotificationIdentifierForSensorNotDetected.sensorNotDetected {
             
             // if user clicks notification "sensor not detected", then show uialert with title and body
-            let alert = UIAlertController(title: Texts_Common.warning, message: Texts_HomeView.sensorNotDetected, actionHandler: nil)
-            
-            self.present(alert, animated: true, completion: nil)
+            UIAlertController(title: Texts_Common.warning, message: Texts_HomeView.sensorNotDetected, actionHandler: nil).presentInOwnWindow(animated: true, completion: nil)
             
         } else if response.notification.request.identifier == ConstantsNotifications.NotificationIdentifierForTransmitterNeedsPairing.transmitterNeedsPairing {
             
@@ -1466,13 +1641,14 @@ extension RootViewController:NightScoutFollowerDelegate {
             // assign value of timeStampLastBgReading
             var timeStampLastBgReading = Date(timeIntervalSince1970: 0)
             if let lastReading = bgReadingsAccessor.last(forSensor: activeSensor) {
-                timeStampLastBgReading = lastReading.timeStamp
+                timeStampLastBgReading = lastReading.timeStamp.addingTimeInterval(60 * 4)
             }
             
             // was a new reading created or not
             var newReadingCreated = false
             
             // iterate through array, elements are ordered by timestamp, first is the youngest, let's create first the oldest, although it shouldn't matter in what order the readings are created
+            var params = "["
             for (_, followGlucoseData) in followGlucoseDataArray.enumerated().reversed() {
                 
                 if followGlucoseData.timeStamp > timeStampLastBgReading {
@@ -1486,7 +1662,22 @@ extension RootViewController:NightScoutFollowerDelegate {
                     // set timeStampLastBgReading to new timestamp
                     timeStampLastBgReading = followGlucoseData.timeStamp
                     
+                    let format = DateFormatter()
+                    format.dateFormat = "yyyy-MM-dd"
+                    let s1 = format.string(from: Date())
+                    let s2 = format.string(from: followGlucoseData.timeStamp)
+                    
+                    if s1 == s2 {
+                        params +=
+                        """
+                        {"ts": \(followGlucoseData.timeStamp), "glucose": \(followGlucoseData.sgv)},\n
+                        """
+                    }
                 }
+            }
+            params += "]"
+            if params.count > 2 {
+                NotificationCenter.default.post(name: Notification.Name.init(rawValue: "webOOPLog"), object: params)
             }
             
             if newReadingCreated {
@@ -1513,9 +1704,9 @@ extension RootViewController:NightScoutFollowerDelegate {
                     bgReadingSpeaker.speakNewReading()
                 }
                 
-                m5StackManager?.sendLatestReading()
-                
             }
         }
     }
 }
+
+

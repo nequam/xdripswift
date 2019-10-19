@@ -28,13 +28,12 @@ final class CGMG4xDripTransmitter: BluetoothTransmitter, BluetoothTransmitterDel
     
     /// - parameters:
     ///     - address: if already connected before, then give here the address that was received during previous connect, if not give nil
-    ///     - name : if already connected before, then give here the name that was received during previous connect, if not give nil
     ///     - transmitterID: expected transmitterID, 5 characters
-    init(address:String?, name: String?, transmitterID:String, delegate:CGMTransmitterDelegate) {
+    init(address:String?, transmitterID:String, delegate:CGMTransmitterDelegate) {
         // assign addressname and name or expected devicename
         var newAddressAndName:BluetoothTransmitter.DeviceAddressAndName = BluetoothTransmitter.DeviceAddressAndName.notYetConnected(expectedName: nil)
         if let address = address {
-            newAddressAndName = BluetoothTransmitter.DeviceAddressAndName.alreadyConnectedBefore(address: address, name: name)
+            newAddressAndName = BluetoothTransmitter.DeviceAddressAndName.alreadyConnectedBefore(address: address)
         }
         
         //assign CGMTransmitterDelegate
@@ -58,7 +57,6 @@ final class CGMG4xDripTransmitter: BluetoothTransmitter, BluetoothTransmitterDel
     }
     
     func centralManagerDidFailToConnect(error: Error?) {
-        trace("in centralManagerDidFailToConnect", log: log, type: .error)
     }
     
     func centralManagerDidUpdateState(state: CBManagerState) {
@@ -172,9 +170,6 @@ final class CGMG4xDripTransmitter: BluetoothTransmitter, BluetoothTransmitterDel
     func setWebOOPEnabled(enabled: Bool) {
     }
     
-    /// this transmitter does not support oop web
-    func setWebOOPSiteAndToken(oopWebSite: String, oopWebToken: String) {}
-    
     // MARK: helper functions
     
     private func processxBridgeDataPacket(value:Data) -> (glucoseData:GlucoseData?, batteryLevel:Int?, transmitterID:String?) {
@@ -225,7 +220,7 @@ final class CGMG4xDripTransmitter: BluetoothTransmitter, BluetoothTransmitterDel
         //convert value to string
         if let bufferAsString = String(bytes: value, encoding: .utf8) {
             //find indexes of " " and store in array
-            let indexesOfSplitter = bufferAsString.indexes(of: " ")
+            var indexesOfSplitter = bufferAsString.indexes(of: " ")
             // start with finding rawData
             var range = bufferAsString.startIndex..<indexesOfSplitter[0]
             let rawData:Int? = Int(bufferAsString[range])

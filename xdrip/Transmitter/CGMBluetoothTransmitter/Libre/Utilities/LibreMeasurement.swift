@@ -77,9 +77,8 @@ struct LibreMeasurement {
             self.temperatureAlgorithmGlucose = 0
         }
         
-        //print(self.description)
+        print(self.description)
     }
-    
     
     var description: String {
         var aString = String("Glucose: \(glucose) (mg/dl), date:  \(date), slope: \(slope), offset: \(offset), rawGlucose: \(rawGlucose), rawTemperature: \(rawTemperature), bytes: \(bytes) \n")

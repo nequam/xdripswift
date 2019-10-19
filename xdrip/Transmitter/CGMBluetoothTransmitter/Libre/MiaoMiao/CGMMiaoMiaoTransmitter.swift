@@ -46,27 +46,18 @@ class CGMMiaoMiaoTransmitter:BluetoothTransmitter, BluetoothTransmitterDelegate,
     /// is the transmitter oop web enabled or not
     private var webOOPEnabled: Bool
     
-    /// oop website url to use in case oop web would be enabled
-    private var oopWebSite: String
-    
-    /// oop token to use in case oop web would be enabled
-    private var oopWebToken: String
-        
     // MARK: - Initialization
     /// - parameters:
     ///     - address: if already connected before, then give here the address that was received during previous connect, if not give nil
-    ///     - name : if already connected before, then give here the name that was received during previous connect, if not give nil
     ///     - delegate : CGMTransmitterDelegate intance
     ///     - timeStampLastBgReading : timestamp of last bgReading
     ///     - webOOPEnabled : enabled or not
-    ///     - oopWebSite : oop web site url to use, only used in case webOOPEnabled = true
-    ///     - oopWebToken : oop web token to use, only used in case webOOPEnabled = true
-    init(address:String?, name: String?, delegate:CGMTransmitterDelegate, timeStampLastBgReading:Date, webOOPEnabled: Bool, oopWebSite: String, oopWebToken: String) {
+    init(address:String?, delegate:CGMTransmitterDelegate, timeStampLastBgReading:Date, webOOPEnabled: Bool) {
         
         // assign addressname and name or expected devicename
         var newAddressAndName:BluetoothTransmitter.DeviceAddressAndName = BluetoothTransmitter.DeviceAddressAndName.notYetConnected(expectedName: expectedDeviceNameMiaoMiao)
         if let address = address {
-            newAddressAndName = BluetoothTransmitter.DeviceAddressAndName.alreadyConnectedBefore(address: address, name: name)
+            newAddressAndName = BluetoothTransmitter.DeviceAddressAndName.alreadyConnectedBefore(address: address)
         }
 
         // assign CGMTransmitterDelegate
@@ -82,10 +73,6 @@ class CGMMiaoMiaoTransmitter:BluetoothTransmitter, BluetoothTransmitterDelegate,
         // initialize webOOPEnabled
         self.webOOPEnabled = webOOPEnabled
 
-        // initialize oopWebToken and oopWebSite
-        self.oopWebToken = oopWebToken
-        self.oopWebSite = oopWebSite
-
         super.init(addressAndName: newAddressAndName, CBUUID_Advertisement: nil, servicesCBUUIDs: [CBUUID(string: CBUUID_Service_MiaoMiao)], CBUUID_ReceiveCharacteristic: CBUUID_ReceiveCharacteristic_MiaoMiao, CBUUID_WriteCharacteristic: CBUUID_WriteCharacteristic_MiaoMiao, startScanningAfterInit: CGMTransmitterType.miaomiao.startScanningAfterInit())
         
         // set self as delegate for BluetoothTransmitterDelegate - this parameter is defined in the parent class BluetoothTransmitter
@@ -94,7 +81,7 @@ class CGMMiaoMiaoTransmitter:BluetoothTransmitter, BluetoothTransmitterDelegate,
     
     // MARK: - public functions
     
-    func sendStartReadingCommand() -> Bool {
+    func sendStartReadingCommmand() -> Bool {
         if writeDataToPeripheral(data: Data.init([0xF0]), type: .withoutResponse) {
             return true
         } else {
@@ -110,7 +97,6 @@ class CGMMiaoMiaoTransmitter:BluetoothTransmitter, BluetoothTransmitterDelegate,
     }
     
     func centralManagerDidFailToConnect(error: Error?) {
-        trace("in centralManagerDidFailToConnect", log: log, type: .error)
     }
     
     func centralManagerDidUpdateState(state: CBManagerState) {
@@ -123,7 +109,7 @@ class CGMMiaoMiaoTransmitter:BluetoothTransmitter, BluetoothTransmitterDelegate,
     
     func peripheralDidUpdateNotificationStateFor(characteristic: CBCharacteristic, error: Error?) {
         if error == nil && characteristic.isNotifying {
-            _ = sendStartReadingCommand()
+            _ = sendStartReadingCommmand()
         }
     }
     
@@ -156,7 +142,7 @@ class CGMMiaoMiaoTransmitter:BluetoothTransmitter, BluetoothTransmitterDelegate,
                                 let hardware = String(describing: rxBuffer[16...17].hexEncodedString())
                                 let batteryPercentage = Int(rxBuffer[13])
 
-                                LibreDataParser.libreDataProcessor(sensorSerialNumber: LibreSensorSerialNumber(withUID: Data(rxBuffer.subdata(in: 5..<13)))?.serialNumber, webOOPEnabled: webOOPEnabled, oopWebSite: oopWebSite, oopWebToken: oopWebToken, libreData: (rxBuffer.subdata(in: miaoMiaoHeaderLength..<(344 + miaoMiaoHeaderLength))), cgmTransmitterDelegate: cgmTransmitterDelegate, transmitterBatteryInfo: TransmitterBatteryInfo.percentage(percentage: batteryPercentage), firmware: firmware, hardware: hardware, hardwareSerialNumber: nil, bootloader: nil, timeStampLastBgReading: timeStampLastBgReading, completionHandler: {(timeStampLastBgReading:Date) in
+                                LibreDataParser.libreDataProcessor(sensorSerialNumber: LibreSensorSerialNumber(withUID: Data(rxBuffer.subdata(in: 5..<13)))?.serialNumber, webOOPEnabled: webOOPEnabled, libreData: (rxBuffer.subdata(in: miaoMiaoHeaderLength..<(344 + miaoMiaoHeaderLength))), cgmTransmitterDelegate: cgmTransmitterDelegate, transmitterBatteryInfo: TransmitterBatteryInfo.percentage(percentage: batteryPercentage), firmware: firmware, hardware: hardware, hardwareSerialNumber: nil, bootloader: nil, timeStampLastBgReading: timeStampLastBgReading, completionHandler: {(timeStampLastBgReading:Date) in
                                     self.timeStampLastBgReading = timeStampLastBgReading
                                     
                                 })
@@ -170,7 +156,7 @@ class CGMMiaoMiaoTransmitter:BluetoothTransmitter, BluetoothTransmitterDelegate,
                                 resendPacketCounter = temp + 1
                                 if resendPacketCounter < maxPacketResendRequests {
                                     trace("in peripheral didUpdateValueFor, crc error encountered. New attempt launched", log: log, type: .info)
-                                    _ = sendStartReadingCommand()
+                                    _ = sendStartReadingCommmand()
                                 } else {
                                     trace("in peripheral didUpdateValueFor, crc error encountered. Maximum nr of attempts reached", log: log, type: .info)
                                     resendPacketCounter = 0
@@ -191,7 +177,7 @@ class CGMMiaoMiaoTransmitter:BluetoothTransmitter, BluetoothTransmitterDelegate,
                             if self.writeDataToPeripheral(data: Data.init([0xD3, 0x01]), type: .withoutResponse) {
                                 trace("in peripheralDidUpdateValueFor, successfully sent 0xD3 and 0x01, confirm sensor change to MiaoMiao", log: self.log, type: .info)
                                 DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + .milliseconds(500)) {
-                                    if !self.sendStartReadingCommand() {
+                                    if !self.sendStartReadingCommmand() {
                                         trace("in peripheralDidUpdateValueFor, sendStartReadingCommmand failed", log: self.log, type: .error)
                                     } else {
                                         trace("in peripheralDidUpdateValueFor, successfully sent startReadingCommand to MiaoMiao", log: self.log, type: .info)
@@ -247,12 +233,7 @@ class CGMMiaoMiaoTransmitter:BluetoothTransmitter, BluetoothTransmitterDelegate,
         
         // immediately request a new reading
         // there's no check here to see if peripheral, characteristic, connection, etc.. exists, but that's no issue. If anything's missing, write will simply fail,
-        _ = sendStartReadingCommand()
-    }
-
-    func setWebOOPSiteAndToken(oopWebSite: String, oopWebToken: String) {
-        self.oopWebToken = oopWebToken
-        self.oopWebSite = oopWebSite
+        _ = sendStartReadingCommmand()
     }
 
 }

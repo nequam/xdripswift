@@ -63,27 +63,7 @@ class Texts_SettingsView {
     }()
     
     static let labelWebOOPTransmitter:String = {
-        return NSLocalizedString("settingsviews_webooptransmitter", tableName: filename, bundle: Bundle.main, value: "Web OOP Enabled", comment: "transmitter settings, to enable or didsable web oop")
-    }()
-    
-    static let labelWebOOPSite:String = {
-        return NSLocalizedString("settingsviews_labelWebOOPSite", tableName: filename, bundle: Bundle.main, value: "Web OOP site", comment: "transmitter settings, the web oop site url")
-    }()
-    
-    static let labelWebOOPtoken:String = {
-        return NSLocalizedString("settingsviews_labelWebOOPtoken", tableName: filename, bundle: Bundle.main, value: "Web OOP token", comment: "transmitter settings, the web oop token")
-    }()
-    
-    static let labelWebOOPSiteExplainingText:String = {
-        return NSLocalizedString("settingsviews_labelWebOOPSiteExplainingText", tableName: filename, bundle: Bundle.main, value: "Web OOP site (leave empty to use default value)", comment: "transmitter settings, the web oop site url, explaining text in dialog")
-    }()
-    
-    static let labelWebOOPtokenExplainingText:String = {
-        return NSLocalizedString("settingsviews_labelWebOOPtokenExplainingText", tableName: filename, bundle: Bundle.main, value: "Web OOP token (leave empty to use default value)", comment: "transmitter settings, the web oop token, explaining text in dialog")
-    }()
-    
-    static let labelWebOOP:String = {
-        return NSLocalizedString("settingsviews_labelWebOOP", tableName: filename, bundle: Bundle.main, value: "Web OOP", comment: "transmitter settings, title of the dialogs where site and token are asked")
+        return NSLocalizedString("settingsviews_webooptransmitter", tableName: filename, bundle: Bundle.main, value: "Web OOP Enabled", comment: "transmitter settings, to explain that settings is about resetting the transmitter")
     }()
     
     // MARK: - Section Alerts
@@ -221,22 +201,4 @@ class Texts_SettingsView {
         return NSLocalizedString("settingsviews_license", tableName: filename, bundle: Bundle.main, value: "License", comment: "used in settings, section Info, title of the license setting")
     }()
     
-    // MARK: - Section M5Stack
-    
-    static let m5StackSettingsViewScreenTitle: String = {
-        return NSLocalizedString("m5stack_settingsviews_settingstitle", tableName: filename, bundle: Bundle.main, value: "M5 Stack Settings", comment: "shown on top of the first settings screen")
-    }()
-    
-    static let m5StackTextColor: String = {
-        return NSLocalizedString("m5stack_settingsviews_textColor", tableName: filename, bundle: Bundle.main, value: "Text Color", comment: "name of setting for text color")
-    }()
-    
-    static let m5StackSectionTitleBluetooth: String = {
-        return NSLocalizedString("m5stack_settingsviews_sectiontitlebluetooth", tableName: filename, bundle: Bundle.main, value: "Bluetooth", comment: "bluetooth settings, section title")
-    }()
-    
-    static let giveBlueToothPassword: String = {
-        return NSLocalizedString("m5stack_settingsviews_giveBluetoothPassword", tableName: filename, bundle: Bundle.main, value: "Enter Bluetooth password", comment: "M5 stack bluetooth  settings, pop up that asks user to enter the password")
-    }()
-
 }

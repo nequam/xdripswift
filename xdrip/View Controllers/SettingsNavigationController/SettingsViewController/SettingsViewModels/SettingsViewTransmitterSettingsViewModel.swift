@@ -9,10 +9,6 @@ fileprivate enum Setting:Int, CaseIterable {
     case resetRequired = 2
     /// is webOOP enabled or not
     case webOOP = 3
-    /// if webOOP enabled, what site to use
-    case webOOPsite = 4
-    /// if webOOP enabled, value of the token
-    case webOOPtoken = 5
 }
 
 /// conforms to SettingsViewModelProtocol for all transmitter settings in the first sections screen
@@ -76,13 +72,6 @@ struct SettingsViewTransmitterSettingsViewModel:SettingsViewModelProtocol {
 
         case .webOOP:
             return SettingsSelectedRowAction.nothing
-
-        case .webOOPsite:
-            return SettingsSelectedRowAction.askText(title: Texts_SettingsView.labelWebOOP, message: Texts_SettingsView.labelWebOOPSiteExplainingText, keyboardType: .URL, text: UserDefaults.standard.webOOPSite, placeHolder: Texts_Common.default0, actionTitle: nil, cancelTitle: nil, actionHandler: {(oopwebsiteurl:String) in UserDefaults.standard.webOOPSite = oopwebsiteurl.toNilIfLength0()}, cancelHandler: nil)
-            
-        case .webOOPtoken:
-            return SettingsSelectedRowAction.askText(title: Texts_SettingsView.labelWebOOP, message: Texts_SettingsView.labelWebOOPtokenExplainingText, keyboardType: .default, text: UserDefaults.standard.webOOPtoken, placeHolder: Texts_Common.default0, actionTitle: nil, cancelTitle: nil, actionHandler: {(oopwebtoken:String) in UserDefaults.standard.webOOPtoken = oopwebtoken.toNilIfLength0()}, cancelHandler: nil)
-
         }
     }
     
@@ -112,14 +101,10 @@ struct SettingsViewTransmitterSettingsViewModel:SettingsViewModelProtocol {
             }
             
             // for now WebOOP is only for transmitters that don't need transmitterId and no reset possible.
-            // So for those transmitters, if canWebOOP and if enabled, then amount of rows = 4 (enable weboop, weboop site and weboop token. If webOOP not enabled, then only show setting to enabled weboop
+            // So for those transmitters, if canWebOOP, then amount of rows = 2
             // Needs adaptation in case we would enable webOOP for transmitters with transmitterId, like Blucon
             if transmitterType.canWebOOP() {
-                if UserDefaults.standard.webOOPEnabled {
-                    count = 4
-                } else {
-                    count = 2
-                }
+                count = 2
             }
             
             return count
@@ -145,12 +130,6 @@ struct SettingsViewTransmitterSettingsViewModel:SettingsViewModelProtocol {
             
         case .webOOP:
             return Texts_SettingsView.labelWebOOPTransmitter
-            
-        case .webOOPsite:
-            return Texts_SettingsView.labelWebOOPSite
-            
-        case .webOOPtoken:
-            return Texts_SettingsView.labelWebOOPtoken
         }
     }
     
@@ -167,10 +146,6 @@ struct SettingsViewTransmitterSettingsViewModel:SettingsViewModelProtocol {
             return UITableViewCell.AccessoryType.none
         case .webOOP:
             return UITableViewCell.AccessoryType.none
-        case .webOOPsite:
-            return UITableViewCell.AccessoryType.disclosureIndicator
-        case .webOOPtoken:
-            return UITableViewCell.AccessoryType.disclosureIndicator
         }
 
     }
@@ -188,19 +163,6 @@ struct SettingsViewTransmitterSettingsViewModel:SettingsViewModelProtocol {
             return UserDefaults.standard.transmitterResetRequired ? Texts_Common.yes:Texts_Common.no
         case .webOOP:
             return nil
-        case .webOOPsite:
-            if let site = UserDefaults.standard.webOOPSite {
-                return site
-            } else {
-                return Texts_Common.default0
-            }
-        case .webOOPtoken:
-            if let token = UserDefaults.standard.webOOPtoken {
-                return token
-            } else {
-                return Texts_Common.default0
-            }
-
         }
     }
     
@@ -209,7 +171,10 @@ struct SettingsViewTransmitterSettingsViewModel:SettingsViewModelProtocol {
         
         switch setting {
         case .webOOP:
-            return UISwitch(isOn: UserDefaults.standard.webOOPEnabled, action: {(isOn:Bool) in UserDefaults.standard.webOOPEnabled = isOn})
+            UserDefaults.standard.webOOPEnabled = true
+            let switchButton = UISwitch(isOn: UserDefaults.standard.webOOPEnabled, action: {(isOn:Bool) in UserDefaults.standard.webOOPEnabled = isOn})
+            switchButton.isUserInteractionEnabled = false
+            return switchButton
         default:
             return nil
         }
@@ -217,14 +182,14 @@ struct SettingsViewTransmitterSettingsViewModel:SettingsViewModelProtocol {
     
     // MARK: - private helper functions
     
-    /// if it's a transmitterType that canWebOOP, then when user clicks second row or highter (ie index >= 1), then fix to index + 2 is done
+    /// if it's a transmitterType that canWebOOP, then when user clicks second row (ie index = 1), then fix to 3 is done
     private func fixWebOOPIndex(_ index: Int) -> Int {
         
         var index = index
         
         if let transmitterType = UserDefaults.standard.transmitterType {
-            if transmitterType.canWebOOP() && index >= 1 {
-                index = index + 2
+            if transmitterType.canWebOOP() && index == 1 {
+                index = 3
             }
         }
         

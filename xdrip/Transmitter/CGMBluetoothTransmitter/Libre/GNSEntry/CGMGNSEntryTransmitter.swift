@@ -92,13 +92,12 @@ class CGMGNSEntryTransmitter:BluetoothTransmitter, BluetoothTransmitterDelegate,
     
     /// - parameters:
     ///     - address: if already connected before, then give here the address that was received during previous connect, if not give nil
-    ///     - name: if already connected before, then give here the name that was received during previous connect, if not give nil
-    init?(address:String?, name: String?, delegate:CGMTransmitterDelegate, timeStampLastBgReading:Date) {
+    init?(address:String?, delegate:CGMTransmitterDelegate, timeStampLastBgReading:Date) {
         
         // assign addressname and name or expected devicename
         var newAddressAndName:BluetoothTransmitter.DeviceAddressAndName = BluetoothTransmitter.DeviceAddressAndName.notYetConnected(expectedName: "GNSentry")
         if let address = address {
-            newAddressAndName = BluetoothTransmitter.DeviceAddressAndName.alreadyConnectedBefore(address: address, name: name)
+            newAddressAndName = BluetoothTransmitter.DeviceAddressAndName.alreadyConnectedBefore(address: address)
         }
         
         //initialize timeStampLastBgReading
@@ -122,7 +121,7 @@ class CGMGNSEntryTransmitter:BluetoothTransmitter, BluetoothTransmitterDelegate,
     }
     
     func centralManagerDidFailToConnect(error: Error?) {
-        trace("in centralManagerDidFailToConnect", log: log, type: .error)
+        trace("in centralManagerDidFailToConnect", log: log, type: .info)
     }
     
     func centralManagerDidUpdateState(state: CBManagerState) {
@@ -268,9 +267,6 @@ class CGMGNSEntryTransmitter:BluetoothTransmitter, BluetoothTransmitterDelegate,
     func setWebOOPEnabled(enabled: Bool) {
     }
     
-    /// this transmitter does not support oop web
-    func setWebOOPSiteAndToken(oopWebSite: String, oopWebToken: String) {}
-
     // MARK: CBCentralManager overriden functions
     
     override func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {

@@ -27,13 +27,12 @@ class CGMDroplet1Transmitter:BluetoothTransmitter, BluetoothTransmitterDelegate,
     // MARK: - Initialization
     /// - parameters:
     ///     - address: if already connected before, then give here the address that was received during previous connect, if not give nil
-    ///     - name : if already connected before, then give here the name that was received during previous connect, if not give nil
-    init(address:String?, name: String?, delegate:CGMTransmitterDelegate) {
+    init(address:String?, delegate:CGMTransmitterDelegate) {
         
         // assign addressname and name or expected devicename
         var newAddressAndName:BluetoothTransmitter.DeviceAddressAndName = BluetoothTransmitter.DeviceAddressAndName.notYetConnected(expectedName: "limitter")
         if let address = address {
-            newAddressAndName = BluetoothTransmitter.DeviceAddressAndName.alreadyConnectedBefore(address: address, name: name)
+            newAddressAndName = BluetoothTransmitter.DeviceAddressAndName.alreadyConnectedBefore(address: address)
         }
         
         // assign CGMTransmitterDelegate
@@ -53,7 +52,6 @@ class CGMDroplet1Transmitter:BluetoothTransmitter, BluetoothTransmitterDelegate,
     }
     
     func centralManagerDidFailToConnect(error: Error?) {
-        trace("in centralManagerDidFailToConnect", log: log, type: .error)
     }
     
     func centralManagerDidUpdateState(state: CBManagerState) {
@@ -81,7 +79,7 @@ class CGMDroplet1Transmitter:BluetoothTransmitter, BluetoothTransmitterDelegate,
             trace("    value = %{public}@", log: log, type: .info, valueAsString)
             
             //find indexes of " "
-            let indexesOfSplitter = valueAsString.indexes(of: " ")
+            var indexesOfSplitter = valueAsString.indexes(of: " ")
             
             // length of indexesOfSplitter should be minimum 3 (there should be minimum 3 spaces)
             guard indexesOfSplitter.count >= 3 else {
@@ -145,8 +143,5 @@ class CGMDroplet1Transmitter:BluetoothTransmitter, BluetoothTransmitterDelegate,
     /// this transmitter does not support oopWeb
     func setWebOOPEnabled(enabled: Bool) {
     }
-
-    /// this transmitter does not support oop web
-    func setWebOOPSiteAndToken(oopWebSite: String, oopWebToken: String) {}
 
 }

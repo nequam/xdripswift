@@ -30,7 +30,7 @@ class BgReadingsAccessor {
     ///     - if ignoreCalculatedValue = true, then value of calculatedValue will be ignored
     /// - returns: an array with readings, can be empty array.
     ///     Order by timestamp, descending meaning the reading at index 0 is the youngest
-    func getLatestBgReadings(limit:Int?, howOld maximumDays:Int?, forSensor sensor:Sensor?, ignoreRawData:Bool, ignoreCalculatedValue:Bool) -> [BgReading] {
+    func getLatestBgReadings(limit:Int?, howOld maximumDays: Float?, forSensor sensor:Sensor?, ignoreRawData:Bool, ignoreCalculatedValue:Bool) -> [BgReading] {
         
         // if maximum age specified then create fromdate
         var fromDate:Date?
@@ -40,6 +40,12 @@ class BgReadingsAccessor {
         
         return getLatestBgReadings(limit: limit, fromDate: fromDate, forSensor: sensor, ignoreRawData: ignoreRawData, ignoreCalculatedValue: ignoreCalculatedValue)
         
+    }
+    
+    func judgeReading(fromDate: Date, toDate: Date, sensor:Sensor?) -> Bool {
+        let bgReadings = fetchBgReadings(limit: 1, fromDate: fromDate, toDate: toDate)
+        print("from: \(fromDate), to: \(toDate), date: \(bgReadings.first?.timeStamp)")
+        return bgReadings.count > 0
     }
     
     /// Gives readings for which calculatedValue != 0, rawdata != 0, matching sensorid if sensorid not nil, with timestamp higher than fromDate
@@ -52,35 +58,36 @@ class BgReadingsAccessor {
     ///     - if ignoreCalculatedValue = true, then value of calculatedValue will be ignored
     /// - returns: an array with readings, can be empty array.
     ///     Order by timestamp, descending meaning the reading at index 0 is the youngest
-   func getLatestBgReadings(limit:Int?, fromDate:Date?, forSensor sensor:Sensor?, ignoreRawData:Bool, ignoreCalculatedValue:Bool) -> [BgReading] {
+    func getLatestBgReadings(limit:Int?, fromDate:Date?, toDate: Date? = nil, forSensor sensor:Sensor?, ignoreRawData:Bool, ignoreCalculatedValue:Bool) -> [BgReading] {
         
         var returnValue:[BgReading] = []
         
-        let ignoreSensorId = sensor == nil ? true:false
+//        let ignoreSensorId = sensor == nil ? true:false
         
-        let bgReadings = fetchBgReadings(limit: limit, fromDate: fromDate)
-        
-        loop: for (_,bgReading) in bgReadings.enumerated() {
-            if ignoreSensorId {
-                if (bgReading.calculatedValue != 0.0 || ignoreCalculatedValue) && (bgReading.rawData != 0.0 || ignoreRawData) {
-                    returnValue.append(bgReading)
-                }
-            } else {
-                if let readingsensor = bgReading.sensor {
-                    if readingsensor.id == sensor!.id {
-                        if (bgReading.calculatedValue != 0.0 || ignoreCalculatedValue) && (bgReading.rawData != 0.0 || ignoreRawData) {
-                            returnValue.append(bgReading)
-                        }
-                    }
-                }
-            }
-            
-            if let limit = limit {
-                if returnValue.count == limit {
-                    break loop
-                }
-            }
-        }
+        let bgReadings = fetchBgReadings(limit: limit, fromDate: fromDate, toDate: toDate)
+        returnValue = bgReadings
+        // why? ? ? ?
+//        loop: for (_,bgReading) in bgReadings.enumerated() {
+//            if ignoreSensorId {
+//                if (bgReading.calculatedValue != 0.0 || ignoreCalculatedValue) && (bgReading.rawData != 0.0 || ignoreRawData) {
+//                    returnValue.append(bgReading)
+//                }
+//            } else {
+//                if let readingsensor = bgReading.sensor {
+//                    if readingsensor.id == sensor!.id {
+//                        if (bgReading.calculatedValue != 0.0 || ignoreCalculatedValue) && (bgReading.rawData != 0.0 || ignoreRawData) {
+//                            returnValue.append(bgReading)
+//                        }
+//                    }
+//                }
+//            }
+//
+//            if let limit = limit {
+//                if returnValue.count == limit {
+//                    break loop
+//                }
+//            }
+//        }
         
         return returnValue
     }
@@ -103,13 +110,16 @@ class BgReadingsAccessor {
     /// - parameters:
     ///     - limit: maximum amount of readings to fetch, if 0 then no limit
     ///     - fromDate : if specified, only return readings with timestamp > fromDate
-    private func fetchBgReadings(limit:Int?, fromDate:Date?) -> [BgReading] {
+    private func fetchBgReadings(limit:Int?, fromDate:Date?, toDate: Date? = nil) -> [BgReading] {
         let fetchRequest: NSFetchRequest<BgReading> = BgReading.fetchRequest()
         fetchRequest.sortDescriptors = [NSSortDescriptor(key: #keyPath(BgReading.timeStamp), ascending: false)]
         
         // if fromDate specified then create predicate
         if let fromDate = fromDate {
-            let predicate = NSPredicate(format: "timeStamp > %@", NSDate(timeIntervalSince1970: fromDate.timeIntervalSince1970))
+            var predicate = NSPredicate(format: "timeStamp >= %@", NSDate(timeIntervalSince1970: fromDate.timeIntervalSince1970))
+            if let toDate = toDate {
+                predicate = NSPredicate(format: "timeStamp >= %@ && timeStamp <= %@", NSDate(timeIntervalSince1970: fromDate.timeIntervalSince1970), NSDate(timeIntervalSince1970: toDate.timeIntervalSince1970))
+            }
             fetchRequest.predicate = predicate
         }
         

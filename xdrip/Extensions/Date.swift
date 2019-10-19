@@ -10,12 +10,11 @@ extension Date {
         return Double(self.timeIntervalSince1970 * 1000)
     }
     
-    /// returns Date in milliseconds as Int64, since 1.1.1970
+    /// returns Date in milliseconds as Int64
     func toMillisecondsAsInt64() -> Int64 {
         return Int64((self.timeIntervalSince1970 * 1000.0).rounded())
     }
     
-    /// returns Date in seconds as Int64, since 1.1.1970
     func toSecondsAsInt64() -> Int64 {
         return Int64((self.timeIntervalSince1970).rounded())
     }
@@ -47,9 +46,4 @@ extension Date {
         return dateFormatter.string(from: self).appending("Z")
     }
     
-    /// returns seconds since 1.1.1970 local time for current timezone
-    func toSecondsAsInt64Local() -> Int64 {
-        let calendar = Calendar.current
-        return (Date().toSecondsAsInt64() + Int64(calendar.timeZone.secondsFromGMT()))
-    }
 }

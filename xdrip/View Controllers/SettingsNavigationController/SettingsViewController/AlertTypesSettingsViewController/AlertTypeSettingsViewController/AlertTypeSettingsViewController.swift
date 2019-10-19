@@ -21,7 +21,7 @@ fileprivate enum Setting:Int, CaseIterable {
 /// edit or add an alert types,
 final class AlertTypeSettingsViewController: UIViewController {
     
-    // MARK: - IBOutlet's and IBAction's
+    // MARK: - IBOutlet's and IBAcction's
     
     /// a tableView is used to display all alerttype properties - not the nicest solution maybe, but the quickest right now
     @IBOutlet weak var tableView: UITableView!
@@ -36,14 +36,12 @@ final class AlertTypeSettingsViewController: UIViewController {
         // delete the alerttype if one exists
         if let alertTypeAsNSObject = alertTypeAsNSObject {
             // first ask user if ok to delete and if yes delete
-            let alert = UIAlertController(title: Texts_AlertTypeSettingsView.confirmDeletionAlertType + alertTypeAsNSObject.name + "?", message: nil, actionHandler: {
+            UIAlertController(title: Texts_AlertTypeSettingsView.confirmDeletionAlertType + alertTypeAsNSObject.name + "?", message: nil, actionHandler: {
                 self.coreDataManager?.mainManagedObjectContext.delete(alertTypeAsNSObject)
                 self.coreDataManager?.saveChanges()
                 // go back to alerttypes settings screen
                 self.performSegue(withIdentifier: UnwindSegueIdentifiers.unwindToAlertTypesSettingsViewController.rawValue, sender: self)
-                }, cancelHandler: nil)
-            
-            self.present(alert, animated: true, completion: nil)
+                }, cancelHandler: nil).presentInOwnWindow(animated: true, completion: {})
             
         } else {
             // go back to alerttypes settings screen
@@ -111,10 +109,10 @@ final class AlertTypeSettingsViewController: UIViewController {
         
         // if the alerttype still has alertEntries linked to it, or if it's about creating a new (yet unexisting) alerttype, then the trashbutton should be disabled
         if let alertEntries = alertTypeAsNSObject?.alertEntries, alertEntries.count > 0 {
-            trashButtonOutlet.disable()
+            trashButtonOutlet.isEnabled = false
         }
         if alertTypeAsNSObject == nil {
-            trashButtonOutlet.disable()
+            trashButtonOutlet.isEnabled = false
         }
         
         setupTableView()
@@ -142,18 +140,13 @@ final class AlertTypeSettingsViewController: UIViewController {
     
     /// to do when user cliks done button
     private func doneButtonAction() {
-        
         // first check if name is a unique name
         let alertTypesAccessor = AlertTypesAccessor(coreDataManager: getCoreDataManager())
         for alertTypeAlreadyStored in alertTypesAccessor.getAllAlertTypes() {
             // if name == alertTypeAlreadyStored.name and alertTypeAlreadyStored is not the same object as alertTypeAsNSObject then not ok
             if alertTypeAlreadyStored.name == name && (alertTypeAsNSObject == nil || alertTypeAlreadyStored != alertTypeAsNSObject) {
-                
                 // define and present alertcontroller, this will show message and an ok button, without action when clicking ok
-                let alert = UIAlertController(title: Texts_Common.warning, message: Texts_AlertTypeSettingsView.alertTypeNameAlreadyExistsMessage, actionHandler: nil)
-                
-                self.present(alert, animated: true, completion: nil)
-                
+                UIAlertController(title: Texts_Common.warning, message: Texts_AlertTypeSettingsView.alertTypeNameAlreadyExistsMessage, actionHandler: nil).presentInOwnWindow(animated: true, completion: {})
                 return
             }
         }

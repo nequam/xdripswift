@@ -59,10 +59,3 @@ protocol SettingsViewModelProtocol {
     
 }
 
-/// to make the coding a bit easier, just one function defined for now, which is to get the viewModel for a specific setting
-protocol SettingsProtocol {
-    
-    /// returns a SettingsViewModelProtocol
-    func viewModel() -> SettingsViewModelProtocol
-    
-}

@@ -2,11 +2,21 @@ import Foundation
 
 extension UserDefaults {
     /// keys for settings and user defaults. For reading and writing settings, the keys should not be used, the specific functions kan be used.
+    func setDefalutValue() {
+        if !defaultValueInit {
+            bloodGlucoseUnitIsMgDl = false
+            
+            defaultValueInit = true
+        }
+    }
+    
     public enum Key: String {
         // User configurable Settings
         
         // General
         
+        /// set userDefault default value at app first launch
+        case defaultValueInit = "defaultValueInit"
         /// bloodglucose  unit
         case bloodGlucoseUnitIsMgDl = "bloodGlucoseUnit"
         /// low value
@@ -22,13 +32,7 @@ extension UserDefaults {
         case transmitterTypeAsString = "transmitterTypeAsString"
         /// transmitterid
         case transmitterId = "transmitterId"
-        /// is web OOP enabled or not
-        case webOOPEnabled = "webOOPEnabled"
-        /// if webOOP enabled, what site to use
-        case webOOPsite = "webOOPsite"
-        /// if webOOP enabled, value of the token
-        case webOOPtoken = "webOOPtoken"
-
+        
         // Nightscout
         
         /// should readings be uploaded to nightscout
@@ -79,40 +83,14 @@ extension UserDefaults {
         /// license info accepted by user yes or no
         case licenseInfoAccepted = "licenseInfoAccepted"
         
-        // M5Stack
-        
-        /// M5Stack blepassword, needed for authenticating App to M5Stack
-        case m5StackBlePassword = "M5StackBlePassword"
-        
-        /// M5Stack text color
-        case m5StackTextColor = "m5StackTextColor"
-        
-        /// name of wifi 1 to be configured in M5Stack
-        case m5StackWiFiName1 = "m5StackWiFiName1"
-        
-        /// name of wifi 2 to be configured in M5Stack
-        case m5StackWiFiName2 = "m5StackWiFiName2"
-        
-        /// name of wifi 3 to be configured in M5Stack
-        case m5StackWiFiName3 = "m5StackWiFiName3"
-        
-        /// Password of wifi 1 to be configured in M5Stack
-        case m5StackWiFiPassword1 = "m5StackWiFiPassword1"
-        
-        /// Password of wifi 2 to be configured in M5Stack
-        case m5StackWiFiPassword2 = "m5StackWiFiPassword2"
-        
-        /// Password of wifi 3 to be configured in M5Stack
-        case m5StackWiFiPassword3 = "m5StackWiFiPassword3"
-        
         // Other Settings (not user configurable)
         
-        // cgm Transmitter
-        /// active transmitter address
-        case cgmTransmitterDeviceAddress = "cgmTransmitterDeviceAddress"
-        /// active transmitter name
-        case cgmTransmitterDeviceName = "cgmTransmitterDeviceName"
-        /// timestamp of last bluetooth disconnect to transmitter
+        // Bluetooth
+        /// active BluetoothTransmitter address
+        case bluetoothDeviceAddress = "bluetoothDeviceAddress"
+        /// active BluetoothTransmitter name
+        case bluetoothDeviceName = "bluetoothDeviceName"
+        /// timestamp of last bluetooth disconnect
         case lastdisConnectTimestamp = "lastdisConnectTimestamp"
         
         // Nightscout
@@ -147,6 +125,47 @@ extension UserDefaults {
         /// G6 factor2 - for testing G6 scaling
         case G6v2ScalingFactor2 = "G6v2ScalingFactor2"
         
+        /// Bubble web oop
+        case webOOPEnabled = "webOOPEnabled"
+        
+        /// for test
+        case lastDate = "lastDate"
+        
+        /// for test
+        case lastIndex = "lastIndex"
+    }
+    
+    var lastDate: Date {
+        get {
+            if let date = value(forKey: Key.lastDate.rawValue) as? Date {
+                return date
+            }
+            let date = Date()
+            self.lastDate = date
+            return date
+        }
+        set {
+            set(newValue, forKey: Key.lastDate.rawValue)
+        }
+    }
+    
+    var lastIndex: Int {
+        get {
+            return integer(forKey: Key.lastIndex.rawValue)
+        }
+        set {
+            set(newValue, forKey: Key.lastIndex.rawValue)
+        }
+    }
+    
+    /// true is setted defalut value
+    var defaultValueInit: Bool {
+        get {
+            return bool(forKey: Key.defaultValueInit.rawValue)
+        }
+        set {
+            set(newValue, forKey: Key.defaultValueInit.rawValue)
+        }
     }
     
     // MARK: - =====  User Configurable Settings ======
@@ -278,42 +297,6 @@ extension UserDefaults {
         }
         set {
             set(newValue, forKey: Key.transmitterId.rawValue)
-        }
-    }
-    
-    /// web oop enabled
-    @objc dynamic var webOOPEnabled: Bool {
-        get {
-            return bool(forKey: Key.webOOPEnabled.rawValue)
-        }
-        set {
-            set(newValue, forKey: Key.webOOPEnabled.rawValue)
-        }
-    }
-    
-    /// web oop site
-    @objc dynamic var webOOPSite:String? {
-        get {
-            return string(forKey: Key.webOOPsite.rawValue)
-        }
-        set {
-            var value = newValue
-            if let newValue = newValue {
-                if !newValue.startsWith("http") {
-                    value = "https://" + newValue
-                }
-            }
-            set(value, forKey: Key.webOOPsite.rawValue)
-        }
-    }
-
-    /// web oop token
-    @objc dynamic var webOOPtoken:String? {
-        get {
-            return string(forKey: Key.webOOPtoken.rawValue)
-        }
-        set {
-            set(newValue, forKey: Key.webOOPtoken.rawValue)
         }
     }
     
@@ -485,7 +468,7 @@ extension UserDefaults {
         }
     }
     
-    // MARK: - Keep track of alert and info messages shown to the user
+    // MARK: - =====  Keep track of alert and info messages shown to the user ======
     
     /// message shown when user starts a sensor, which tells that timing should be exact, was it already shown or not
     var startSensorTimeInfoGiven:Bool {
@@ -507,111 +490,23 @@ extension UserDefaults {
         }
     }
     
-    // MARK: M5Stack
-
-    /// M5StackBlePassword, used for authenticating xdrip app towards M5Stack
-    var m5StackBlePassword: String? {
-        get {
-            return string(forKey: Key.m5StackBlePassword.rawValue)
-        }
-        set {
-            set(newValue, forKey: Key.m5StackBlePassword.rawValue)
-        }
-    }
-    
-    /// M5 Stack text color
-    var m5StackTextColor: M5StackTextColor? {
-        get {
-            let textColorAsInt = integer(forKey: Key.m5StackTextColor.rawValue)
-            if textColorAsInt > 0 {
-                return M5StackTextColor(forUInt16: UInt16(textColorAsInt))
-            } else {
-                return nil
-            }
-        }
-        set {
-            let newValueAsInt:Int? = {if let newValue = newValue {return Int(newValue.rawValue)} else {return nil}}()
-            set(newValueAsInt, forKey: Key.m5StackTextColor.rawValue)
-        }
-    }
-    
-    /// name of wifi 1 to be configured in M5Stack
-    var m5StackWiFiName1: String? {
-        get {
-            return string(forKey: Key.m5StackWiFiName1.rawValue)
-        }
-        set {
-            set(newValue, forKey: Key.m5StackWiFiName1.rawValue)
-        }
-    }
-    
-    /// name of wifi 2 to be configured in M5Stack
-    var m5StackWiFiName2: String? {
-        get {
-            return string(forKey: Key.m5StackWiFiName2.rawValue)
-        }
-        set {
-            set(newValue, forKey: Key.m5StackWiFiName2.rawValue)
-        }
-    }
-    
-    /// name of wifi 3 to be configured in M5Stack
-    var m5StackWiFiName3: String? {
-        get {
-            return string(forKey: Key.m5StackWiFiName3.rawValue)
-        }
-        set {
-            set(newValue, forKey: Key.m5StackWiFiName3.rawValue)
-        }
-    }
-    
-    /// Password of wifi 1 to be configured in M5Stack
-    var m5StackWiFiPassword1: String? {
-        get {
-            return string(forKey: Key.m5StackWiFiPassword1.rawValue)
-        }
-        set {
-            set(newValue, forKey: Key.m5StackWiFiPassword1.rawValue)
-        }
-    }
-    
-    /// Password of wifi 2 to be configured in M5Stack
-    var m5StackWiFiPassword2: String? {
-        get {
-            return string(forKey: Key.m5StackWiFiPassword2.rawValue)
-        }
-        set {
-            set(newValue, forKey: Key.m5StackWiFiPassword2.rawValue)
-        }
-    }
-    
-    /// Password of wifi 3 to be configured in M5Stack
-    var m5StackWiFiPassword3: String? {
-        get {
-            return string(forKey: Key.m5StackWiFiPassword3.rawValue)
-        }
-        set {
-            set(newValue, forKey: Key.m5StackWiFiPassword3.rawValue)
-        }
-    }
-    
     // MARK: - =====  Other Settings ======
     
-    var cgmTransmitterDeviceAddress: String? {
+    var bluetoothDeviceAddress: String? {
         get {
-            return string(forKey: Key.cgmTransmitterDeviceAddress.rawValue)
+            return string(forKey: Key.bluetoothDeviceAddress.rawValue)
         }
         set {
-            set(newValue, forKey: Key.cgmTransmitterDeviceAddress.rawValue)
+            set(newValue, forKey: Key.bluetoothDeviceAddress.rawValue)
         }
     }
     
-    var cgmTransmitterDeviceName: String? {
+    var bluetoothDeviceName: String? {
         get {
-            return string(forKey: Key.cgmTransmitterDeviceName.rawValue)
+            return string(forKey: Key.bluetoothDeviceName.rawValue)
         }
         set {
-            set(newValue, forKey: Key.cgmTransmitterDeviceName.rawValue)
+            set(newValue, forKey: Key.bluetoothDeviceName.rawValue)
         }
     }
 
@@ -728,7 +623,15 @@ extension UserDefaults {
     }
     
     
-    
+    /// web oop enabled
+    @objc dynamic var webOOPEnabled: Bool {
+        get {
+            return bool(forKey: Key.webOOPEnabled.rawValue)
+        }
+        set {
+            set(newValue, forKey: Key.webOOPEnabled.rawValue)
+        }
+    }
 }
 
 
